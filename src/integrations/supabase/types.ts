@@ -504,6 +504,7 @@ export type Database = {
           is_verified: boolean | null
           phone: string | null
           referral_code: string | null
+          referral_source: string | null
           updated_at: string
           user_id: string
           username: string
@@ -521,6 +522,7 @@ export type Database = {
           is_verified?: boolean | null
           phone?: string | null
           referral_code?: string | null
+          referral_source?: string | null
           updated_at?: string
           user_id: string
           username: string
@@ -538,6 +540,7 @@ export type Database = {
           is_verified?: boolean | null
           phone?: string | null
           referral_code?: string | null
+          referral_source?: string | null
           updated_at?: string
           user_id?: string
           username?: string
@@ -863,6 +866,7 @@ export type Database = {
       squads: {
         Row: {
           captain_id: string
+          color: string
           created_at: string
           description: string | null
           game: Database["public"]["Enums"]["game_type"] | null
@@ -876,6 +880,7 @@ export type Database = {
         }
         Insert: {
           captain_id: string
+          color?: string
           created_at?: string
           description?: string | null
           game?: Database["public"]["Enums"]["game_type"] | null
@@ -889,6 +894,7 @@ export type Database = {
         }
         Update: {
           captain_id?: string
+          color?: string
           created_at?: string
           description?: string | null
           game?: Database["public"]["Enums"]["game_type"] | null
@@ -1295,6 +1301,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      evaluate_achievements: { Args: { _user_id: string }; Returns: undefined }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1314,6 +1321,7 @@ export type Database = {
         Args: { _squad_id: string; _user_id: string }
         Returns: boolean
       }
+      recompute_player_stats: { Args: { _user_id: string }; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
