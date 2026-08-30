@@ -497,54 +497,66 @@ export type Database = {
           bio: string | null
           created_at: string
           email: string | null
+          favorite_genres: string[]
           followers_count: number | null
           following_count: number | null
+          full_name: string | null
           game_handle: string | null
           id: string
           is_verified: boolean | null
           phone: string | null
+          platform: Database["public"]["Enums"]["platform_type"] | null
           referral_code: string | null
           referral_source: string | null
           updated_at: string
           user_id: string
           username: string
           wallet_balance: number | null
+          website: string | null
         }
         Insert: {
           avatar_url?: string | null
           bio?: string | null
           created_at?: string
           email?: string | null
+          favorite_genres?: string[]
           followers_count?: number | null
           following_count?: number | null
+          full_name?: string | null
           game_handle?: string | null
           id?: string
           is_verified?: boolean | null
           phone?: string | null
+          platform?: Database["public"]["Enums"]["platform_type"] | null
           referral_code?: string | null
           referral_source?: string | null
           updated_at?: string
           user_id: string
           username: string
           wallet_balance?: number | null
+          website?: string | null
         }
         Update: {
           avatar_url?: string | null
           bio?: string | null
           created_at?: string
           email?: string | null
+          favorite_genres?: string[]
           followers_count?: number | null
           following_count?: number | null
+          full_name?: string | null
           game_handle?: string | null
           id?: string
           is_verified?: boolean | null
           phone?: string | null
+          platform?: Database["public"]["Enums"]["platform_type"] | null
           referral_code?: string | null
           referral_source?: string | null
           updated_at?: string
           user_id?: string
           username?: string
           wallet_balance?: number | null
+          website?: string | null
         }
         Relationships: []
       }
@@ -638,6 +650,7 @@ export type Database = {
           expires_at: string | null
           id: string
           status: string | null
+          title: string | null
           tournament_id: string | null
           type: Database["public"]["Enums"]["reward_type"]
           user_id: string
@@ -650,6 +663,7 @@ export type Database = {
           expires_at?: string | null
           id?: string
           status?: string | null
+          title?: string | null
           tournament_id?: string | null
           type: Database["public"]["Enums"]["reward_type"]
           user_id: string
@@ -662,6 +676,7 @@ export type Database = {
           expires_at?: string | null
           id?: string
           status?: string | null
+          title?: string | null
           tournament_id?: string | null
           type?: Database["public"]["Enums"]["reward_type"]
           user_id?: string
@@ -681,28 +696,43 @@ export type Database = {
           created_at: string
           created_by: string
           description: string | null
+          game: Database["public"]["Enums"]["game_type"] | null
           id: string
-          scheduled_at: string
+          notes: string | null
+          rsvps: Json
+          scheduled_at: string | null
           squad_id: string
+          starts_at: string | null
           title: string
+          type: string
         }
         Insert: {
           created_at?: string
           created_by: string
           description?: string | null
+          game?: Database["public"]["Enums"]["game_type"] | null
           id?: string
-          scheduled_at: string
+          notes?: string | null
+          rsvps?: Json
+          scheduled_at?: string | null
           squad_id: string
+          starts_at?: string | null
           title: string
+          type?: string
         }
         Update: {
           created_at?: string
           created_by?: string
           description?: string | null
+          game?: Database["public"]["Enums"]["game_type"] | null
           id?: string
-          scheduled_at?: string
+          notes?: string | null
+          rsvps?: Json
+          scheduled_at?: string | null
           squad_id?: string
+          starts_at?: string | null
           title?: string
+          type?: string
         }
         Relationships: [
           {
@@ -833,25 +863,37 @@ export type Database = {
       }
       squad_messages: {
         Row: {
+          avatar_url: string | null
           content: string
           created_at: string
           id: string
+          is_system: boolean
+          pinned: boolean
           squad_id: string
           user_id: string
+          username: string | null
         }
         Insert: {
+          avatar_url?: string | null
           content: string
           created_at?: string
           id?: string
+          is_system?: boolean
+          pinned?: boolean
           squad_id: string
           user_id: string
+          username?: string | null
         }
         Update: {
+          avatar_url?: string | null
           content?: string
           created_at?: string
           id?: string
+          is_system?: boolean
+          pinned?: boolean
           squad_id?: string
           user_id?: string
+          username?: string | null
         }
         Relationships: [
           {
@@ -1086,6 +1128,7 @@ export type Database = {
           id: string
           image_url: string | null
           live_stream_link: string | null
+          lobby_size: number | null
           max_participants: number
           prize_pool: number
           registration_deadline: string
@@ -1108,6 +1151,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           live_stream_link?: string | null
+          lobby_size?: number | null
           max_participants?: number
           prize_pool?: number
           registration_deadline: string
@@ -1130,6 +1174,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           live_stream_link?: string | null
+          lobby_size?: number | null
           max_participants?: number
           prize_pool?: number
           registration_deadline?: string
@@ -1301,6 +1346,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      delete_user_account: { Args: never; Returns: undefined }
       evaluate_achievements: { Args: { _user_id: string }; Returns: undefined }
       has_role: {
         Args: {
