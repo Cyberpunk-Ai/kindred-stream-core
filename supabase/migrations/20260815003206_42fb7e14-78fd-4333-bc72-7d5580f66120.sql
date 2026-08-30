@@ -1,0 +1,2 @@
+ALTER TABLE public.tournaments ADD COLUMN IF NOT EXISTS lobby_size integer;
+ALTER TABLE public.tournaments ADD CONSTRAINT tournaments_lobby_size_positive CHECK (lobby_size IS NULL OR lobby_size > 0) NOT VALID;
