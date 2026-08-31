@@ -3,6 +3,7 @@ import { useParams, Link } from "@/lib/router-compat";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { backend } from "@/backend";
 import { SocialLayout } from "@/components/social/social-nav";
+import { MediaGallery } from "@/components/social/media-gallery";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { StatusComments } from "@/components/social/status-comments";
 import { Heart, Eye, ArrowLeft, MessageCircle } from "lucide-react";
