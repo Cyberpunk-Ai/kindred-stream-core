@@ -172,11 +172,14 @@ export default function PostDetail() {
           <div className="bg-black">
             {post.media_type === "video" ? (
               <video src={post.media_url} controls className="w-full max-h-[600px]" />
+            ) : Array.isArray((post as any).media_urls) && (post as any).media_urls.length > 1 ? (
+              <MediaGallery urls={(post as any).media_urls as string[]} />
             ) : (
               <img
                 loading="lazy"
                 decoding="async"
                 src={post.media_url}
+                alt="Post media"
                 className="w-full max-h-[600px] object-contain"
               />
             )}
