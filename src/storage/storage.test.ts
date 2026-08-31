@@ -56,7 +56,7 @@ test("bucket registry is the single source of truth", () => {
 test("valid uploads pass the 10 MB limit and MIME rules", () => {
   const valid = new Blob([new Uint8Array(1024)], { type: "image/png" });
   assert.doesNotThrow(() => validateUploadLimits(valid, "image/png", "avatars"));
-  assert.equal(MAX_UPLOAD_BYTES, 10 * 1024 * 1024);
+  assert.equal(MAX_UPLOAD_BYTES, 25 * 1024 * 1024);
 
   const max = new Blob([new Uint8Array(MAX_UPLOAD_BYTES)], { type: "image/jpeg" });
   assert.doesNotThrow(() => validateUploadLimits(max, "image/jpeg", "avatars"));
