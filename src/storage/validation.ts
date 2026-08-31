@@ -1,4 +1,23 @@
-export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const DEFAULT_MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+
+/**
+ * Upload ceiling is environment-driven so dev/staging/production can differ
+ * without a code change: `VITE_STORAGE_MAX_UPLOAD_BYTES` in the browser,
+ * `STORAGE_MAX_UPLOAD_BYTES` on the server.
+ */
+function resolveMaxUploadBytes(): number {
+  const fromVite = (import.meta as unknown as { env?: Record<string, string | undefined> }).env
+    ?.VITE_STORAGE_MAX_UPLOAD_BYTES;
+  const fromNode =
+    typeof process !== "undefined" ? process.env?.["STORAGE_MAX_UPLOAD_BYTES"] : undefined;
+  const parsed = Number(fromVite ?? fromNode);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_MAX_UPLOAD_BYTES;
+}
+
+export const MAX_UPLOAD_BYTES = resolveMaxUploadBytes();
+
+/** Avatars stay small on purpose — they are rendered everywhere. */
+const AVATAR_MAX_BYTES = Math.min(MAX_UPLOAD_BYTES, 10 * 1024 * 1024);
 
 export const GAMEFLEX_ALLOWED_MIME_TYPES = {
   avatars: ["image/jpeg", "image/png", "image/webp", "image/gif"],
