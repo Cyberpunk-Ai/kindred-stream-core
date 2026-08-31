@@ -625,27 +625,20 @@ export function StatusFeed({
   };
 
   const handleShare = async (status: any) => {
-    const url = `${window.location.origin}/social?status=${status.id}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: "Check out this post on GameFlex", url });
-        return;
-      } catch {
-        /* non-critical: ignore */
-      }
-      void recommendationEventService.recordEvent({
-        userId: user?.id ?? null,
-        entityType: "post",
-        entityId: status.id,
-        action: "share",
-      });
-    }
-    try {
-      await navigator.clipboard.writeText(url);
-      toast({ title: "Link copied!" });
-    } catch {
-      toast({ title: "Share link ready", description: url });
-    }
+    const outcome = await shareContent({
+      target: "post",
+      id: status.id,
+      title: "Check out this post on GameFlex",
+    });
+    void recommendationEventService.recordEvent({
+      userId: user?.id ?? null,
+      entityType: "post",
+      entityId: status.id,
+      action: "share",
+    });
+    if (outcome.method === "clipboard") toast({ title: "Link copied!" });
+    if (outcome.method === "manual")
+      toast({ title: "Share link ready", description: outcome.url });
   };
 
   const recentPosts = useMemo(() => {
