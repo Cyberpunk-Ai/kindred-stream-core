@@ -42,7 +42,7 @@ export const GAMEFLEX_ALLOWED_MIME_TYPES = {
 } as const;
 
 export const MAX_UPLOAD_BYTES_BY_BUCKET = {
-  avatars: MAX_UPLOAD_BYTES,
+  avatars: AVATAR_MAX_BYTES,
   posts: MAX_UPLOAD_BYTES,
   stories: MAX_UPLOAD_BYTES,
   "short-videos": MAX_UPLOAD_BYTES,
