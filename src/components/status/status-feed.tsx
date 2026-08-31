@@ -23,6 +23,8 @@ import {
   Infinity as InfinityIcon,
 } from "lucide-react";
 import { resolveStoryGradient } from "@/features/stories/gradients";
+import { shareContent } from "@/lib/share";
+import { MediaGallery } from "@/components/social/media-gallery";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
