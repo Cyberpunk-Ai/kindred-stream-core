@@ -824,6 +824,8 @@ export function StatusFeed({
                     <div className="aspect-[4/5] sm:aspect-auto sm:max-h-[600px] overflow-hidden flex items-center justify-center">
                       <AutoplayVideo src={status.media_url} />
                     </div>
+                  ) : Array.isArray(status.media_urls) && status.media_urls.length > 1 ? (
+                    <MediaGallery urls={status.media_urls as string[]} />
                   ) : (
                     <div className="aspect-[4/5] sm:aspect-auto overflow-hidden">
                       <img
