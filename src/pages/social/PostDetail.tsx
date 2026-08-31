@@ -3,6 +3,7 @@ import { useParams, Link } from "@/lib/router-compat";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { backend } from "@/backend";
 import { SocialLayout } from "@/components/social/social-nav";
+import { MediaGallery } from "@/components/social/media-gallery";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { StatusComments } from "@/components/social/status-comments";
 import { Heart, Eye, ArrowLeft, MessageCircle } from "lucide-react";
@@ -172,11 +173,14 @@ export default function PostDetail() {
           <div className="bg-black">
             {post.media_type === "video" ? (
               <video src={post.media_url} controls className="w-full max-h-[600px]" />
+            ) : Array.isArray((post as any).media_urls) && (post as any).media_urls.length > 1 ? (
+              <MediaGallery urls={(post as any).media_urls as string[]} />
             ) : (
               <img
                 loading="lazy"
                 decoding="async"
                 src={post.media_url}
+                alt="Post media"
                 className="w-full max-h-[600px] object-contain"
               />
             )}

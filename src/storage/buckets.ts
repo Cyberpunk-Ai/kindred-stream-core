@@ -32,7 +32,7 @@ export const GAMEFLEX_BUCKET_REGISTRY: Record<
     purpose: "User profile and identity media",
     visibility: "public",
     allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
-    maxBytes: 10 * 1024 * 1024,
+    maxBytes: 25 * 1024 * 1024,
     objectKeyPattern: "avatars/{userId}/{objectId}.{ext}",
   },
   posts: {
@@ -47,7 +47,7 @@ export const GAMEFLEX_BUCKET_REGISTRY: Record<
       "video/webm",
       "image/gif",
     ],
-    maxBytes: 10 * 1024 * 1024,
+    maxBytes: 25 * 1024 * 1024,
     objectKeyPattern: "posts/{userId}/{objectId}.{ext}",
   },
   stories: {
@@ -70,7 +70,7 @@ export const GAMEFLEX_BUCKET_REGISTRY: Record<
     purpose: "Short-form video content",
     visibility: "public",
     allowedMimeTypes: ["video/mp4", "video/webm", "video/quicktime", "video/x-matroska"],
-    maxBytes: 10 * 1024 * 1024,
+    maxBytes: 25 * 1024 * 1024,
     objectKeyPattern: "short-videos/{userId}/{objectId}.{ext}",
   },
   messages: {
@@ -86,7 +86,7 @@ export const GAMEFLEX_BUCKET_REGISTRY: Record<
       "video/webm",
       "application/pdf",
     ],
-    maxBytes: 10 * 1024 * 1024,
+    maxBytes: 25 * 1024 * 1024,
     objectKeyPattern: "messages/{userId}/{conversationId}/{objectId}.{ext}",
   },
   tournaments: {
@@ -94,7 +94,7 @@ export const GAMEFLEX_BUCKET_REGISTRY: Record<
     purpose: "Tournament artwork and event media",
     visibility: "public",
     allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
-    maxBytes: 10 * 1024 * 1024,
+    maxBytes: 25 * 1024 * 1024,
     objectKeyPattern: "tournaments/{objectId}.{ext}",
   },
   achievements: {
@@ -102,7 +102,7 @@ export const GAMEFLEX_BUCKET_REGISTRY: Record<
     purpose: "Achievement badges and unlock artwork",
     visibility: "public",
     allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
-    maxBytes: 10 * 1024 * 1024,
+    maxBytes: 25 * 1024 * 1024,
     objectKeyPattern: "achievements/{objectId}.{ext}",
   },
   rewards: {
@@ -110,7 +110,7 @@ export const GAMEFLEX_BUCKET_REGISTRY: Record<
     purpose: "Reward cards and promo media",
     visibility: "public",
     allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
-    maxBytes: 10 * 1024 * 1024,
+    maxBytes: 25 * 1024 * 1024,
     objectKeyPattern: "rewards/{objectId}.{ext}",
   },
   marketplace: {
@@ -118,7 +118,7 @@ export const GAMEFLEX_BUCKET_REGISTRY: Record<
     purpose: "Marketplace item images",
     visibility: "public",
     allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
-    maxBytes: 10 * 1024 * 1024,
+    maxBytes: 25 * 1024 * 1024,
     objectKeyPattern: "marketplace/{sellerId}/{objectId}.{ext}",
   },
   support: {
@@ -126,7 +126,7 @@ export const GAMEFLEX_BUCKET_REGISTRY: Record<
     purpose: "Support tickets and sensitive support attachments",
     visibility: "private",
     allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "application/pdf", "text/plain"],
-    maxBytes: 10 * 1024 * 1024,
+    maxBytes: 25 * 1024 * 1024,
     objectKeyPattern: "support/{userId}/{ticketId}/{objectId}.{ext}",
   },
   backups: {
@@ -134,7 +134,7 @@ export const GAMEFLEX_BUCKET_REGISTRY: Record<
     purpose: "Administrative backups and recovery artifacts",
     visibility: "private",
     allowedMimeTypes: [],
-    maxBytes: 10 * 1024 * 1024,
+    maxBytes: 25 * 1024 * 1024,
     objectKeyPattern: "backups/{date}/{objectId}",
   },
 } as const;

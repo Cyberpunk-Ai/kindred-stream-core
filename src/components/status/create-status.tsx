@@ -5,11 +5,25 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { backend } from "@/backend";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Image as ImageIcon, Video, Smile, Send, X } from "lucide-react";
+import {
+  Image as ImageIcon,
+  Video,
+  Smile,
+  X,
+  RotateCcw,
+  ArrowLeft,
+  ArrowRight,
+  AlertCircle,
+  Check,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
-import { getStorageUrl } from "@/lib/storage-url";
+import { useMediaUpload } from "@/features/social/hooks/useMediaUpload";
+import { bucketLimitBytes, formatBytes } from "@/lib/uploads/upload-manager";
+
+const MEDIA_BUCKET = "posts";
+const MAX_FILES = 10;
 
 export function CreateStatus() {
   const { user, profile } = useAuth();
@@ -17,101 +31,88 @@ export function CreateStatus() {
   const { toast } = useToast();
   const [content, setContent] = useState("");
   const [isExpanded, setIsExpanded] = useState(false);
-  const [mediaFile, setMediaFile] = useState<File | null>(null);
-  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileSelect = (file: File | null) => {
-    if (!file) return;
-    setMediaFile(file);
-    const url = URL.createObjectURL(file);
-    setMediaPreview(url);
+  const uploads = useMediaUpload({ bucket: MEDIA_BUCKET, userId: user?.id, maxFiles: MAX_FILES });
+  const limit = bucketLimitBytes(MEDIA_BUCKET);
+
+  const handleFiles = (files: FileList | null) => {
+    if (!files?.length) return;
+    const { rejected } = uploads.addFiles(files);
+    if (rejected.length) {
+      toast({
+        title: "Some files were skipped",
+        description: rejected.join(", "),
+        variant: "destructive",
+      });
+    }
   };
 
-  const clearMedia = () => {
-    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
-    setMediaFile(null);
-    setMediaPreview(null);
-    if (imageInputRef.current) imageInputRef.current.value = "";
-    if (videoInputRef.current) videoInputRef.current.value = "";
-  };
-
-  const createStatus = useMutation({
+  const createPost = useMutation({
     mutationFn: async (text: string) => {
       if (!user) throw new Error("Not authenticated");
-      let media_url: string | undefined;
-      let media_type: string | undefined;
+      if (uploads.busy) throw new Error("Wait for uploads to finish");
 
-      if (mediaFile) {
-        setIsUploading(true);
-        let uploadPayload: Blob = mediaFile;
-        const isImage = mediaFile.type.startsWith("image");
-        let ext = mediaFile.name.split(".").pop() ?? "bin";
-        if (isImage) {
-          const { compressImageFile } = await import("@/utils/media-optimizer");
-          uploadPayload = await compressImageFile(mediaFile, 3840, 0.98);
-          ext =
-            mediaFile.type === "image/png"
-              ? "png"
-              : mediaFile.type === "image/webp"
-                ? "webp"
-                : "jpg";
-        }
-        const path = `${user.id}/${Date.now()}.${ext}`;
-        const { error: uploadError } = await backend.storage
-          .from("stories")
-          .upload(path, uploadPayload, {
-            upsert: false,
-            contentType: isImage ? "image/webp" : mediaFile.type,
-          });
-        if (uploadError) throw uploadError;
-        media_url = await getStorageUrl("stories", path);
-        media_type = isImage ? "image" : "video";
-        setIsUploading(false);
-      }
+      const done = uploads.completed;
+      const urls = done.map((item) => item.result!.url);
+      const firstVideo = done.find((item) => item.mediaType === "video");
 
       const { error } = await backend.from("user_statuses").insert({
         user_id: user.id,
-        content: text,
+        content: text.trim() || null,
         expires_at: null,
-        ...(media_url ? { media_url, media_type } : {}),
+        media_url: urls[0] ?? null,
+        media_urls: urls,
+        media_type: urls.length ? (firstVideo ? "video" : "image") : null,
       });
       if (error) throw error;
     },
     onSuccess: () => {
       setContent("");
       setIsExpanded(false);
-      clearMedia();
+      uploads.reset();
       queryClient.invalidateQueries({ queryKey: ["user-statuses"] });
+      queryClient.invalidateQueries({ queryKey: ["social", "feed"] });
+      toast({ title: "Posted!", description: "Your post is live." });
     },
     onError: (err: Error) => {
-      setIsUploading(false);
       toast({ title: "Failed to post", description: err.message, variant: "destructive" });
     },
   });
 
   if (!user) return null;
 
-  const isSubmitting = createStatus.isPending || isUploading;
+  const hasFailures = uploads.failed.length > 0;
+  const isSubmitting = createPost.isPending;
+  const canPost =
+    (content.trim().length > 0 || uploads.completed.length > 0) &&
+    content.length <= 280 &&
+    !uploads.busy &&
+    !isSubmitting;
 
   return (
     <div className="bg-card border-b border-border/50 md:border md:rounded-xl p-4 mb-4 shadow-sm md:mx-0 transition-all duration-300">
-      {/* Hidden file inputs */}
       <input
         ref={imageInputRef}
         type="file"
         accept="image/*"
+        multiple
         className="hidden"
-        onChange={(e) => handleFileSelect(e.target.files?.[0] ?? null)}
+        onChange={(e) => {
+          handleFiles(e.target.files);
+          e.target.value = "";
+        }}
       />
       <input
         ref={videoInputRef}
         type="file"
         accept="video/*"
         className="hidden"
-        onChange={(e) => handleFileSelect(e.target.files?.[0] ?? null)}
+        onChange={(e) => {
+          handleFiles(e.target.files);
+          e.target.value = "";
+        }}
       />
 
       <div className="flex gap-3">
@@ -136,6 +137,7 @@ export function CreateStatus() {
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 placeholder="What's on your mind, Gamer?"
+                aria-label="Post text"
                 className="w-full bg-transparent border-none outline-none resize-none placeholder:text-muted-foreground text-sm min-h-[80px]"
                 autoFocus
               />
@@ -144,32 +146,104 @@ export function CreateStatus() {
             )}
           </div>
 
-          {/* Media preview */}
-          {mediaPreview && (
-            <div className="relative mt-3 rounded-xl overflow-hidden border border-border/50">
-              {mediaFile?.type.startsWith("video") ? (
-                <video
-                  src={mediaPreview}
-                  className="w-full max-h-48 object-cover"
-                  muted
-                  controls={false}
-                />
-              ) : (
-                <img
-                  loading="lazy"
-                  decoding="async"
-                  src={mediaPreview}
-                  alt="Preview"
-                  className="w-full max-h-48 object-cover"
-                />
-              )}
-              <button
-                onClick={clearMedia}
-                className="absolute top-2 right-2 h-7 w-7 rounded-full bg-black/60 flex items-center justify-center text-white hover:bg-black/80 transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
+          {/* Upload queue: previews, progress, retry, cancel, reorder */}
+          {uploads.items.length > 0 && (
+            <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
+              {uploads.items.map((item, index) => (
+                <div
+                  key={item.id}
+                  className="relative aspect-square overflow-hidden rounded-xl border border-border/50 bg-secondary/30"
+                >
+                  {item.mediaType === "video" ? (
+                    <video src={item.previewUrl} className="h-full w-full object-cover" muted />
+                  ) : (
+                    <img
+                      src={item.previewUrl}
+                      alt={`Attachment ${index + 1}`}
+                      className="h-full w-full object-cover"
+                    />
+                  )}
+
+                  {(item.status === "uploading" || item.status === "queued") && (
+                    <div className="absolute inset-x-0 bottom-0 bg-background/80 px-1.5 py-1">
+                      <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full bg-primary transition-all"
+                          style={{ width: `${item.percent}%` }}
+                        />
+                      </div>
+                      <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                        {item.phase === "uploading"
+                          ? `${item.percent}%`
+                          : item.phase}
+                        {item.attempt > 1 ? ` · retry ${item.attempt}` : ""}
+                      </p>
+                    </div>
+                  )}
+
+                  {item.status === "done" && (
+                    <span className="absolute bottom-1 left-1 rounded-full bg-primary/90 p-0.5 text-primary-foreground">
+                      <Check className="h-3 w-3" />
+                    </span>
+                  )}
+
+                  {(item.status === "error" || item.status === "cancelled") && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-background/85 p-1 text-center">
+                      <AlertCircle className="h-4 w-4 text-destructive" />
+                      <p className="line-clamp-2 text-[10px] text-muted-foreground">{item.error}</p>
+                      <button
+                        type="button"
+                        onClick={() => uploads.retry(item.id)}
+                        className="flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold"
+                      >
+                        <RotateCcw className="h-3 w-3" /> Retry
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="absolute right-1 top-1 flex gap-1">
+                    <button
+                      type="button"
+                      aria-label="Remove attachment"
+                      onClick={() => uploads.remove(item.id)}
+                      className="rounded-full bg-background/80 p-1 hover:bg-background"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+
+                  {uploads.items.length > 1 && (
+                    <div className="absolute left-1 top-1 flex gap-1">
+                      <button
+                        type="button"
+                        aria-label="Move left"
+                        disabled={index === 0}
+                        onClick={() => uploads.move(item.id, -1)}
+                        className="rounded-full bg-background/80 p-1 disabled:opacity-40"
+                      >
+                        <ArrowLeft className="h-3 w-3" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Move right"
+                        disabled={index === uploads.items.length - 1}
+                        onClick={() => uploads.move(item.id, 1)}
+                        className="rounded-full bg-background/80 p-1 disabled:opacity-40"
+                      >
+                        <ArrowRight className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
+          )}
+
+          {hasFailures && (
+            <p className="mt-2 text-xs text-destructive">
+              {uploads.failed.length} attachment(s) didn&apos;t upload. Retry or remove them before
+              posting.
+            </p>
           )}
 
           <AnimatePresence>
@@ -184,6 +258,7 @@ export function CreateStatus() {
                   <Button
                     variant="ghost"
                     size="icon"
+                    aria-label="Add photos"
                     className="h-8 w-8 text-primary rounded-full hover:bg-primary/10"
                     onClick={() => imageInputRef.current?.click()}
                     disabled={isSubmitting}
@@ -193,6 +268,7 @@ export function CreateStatus() {
                   <Button
                     variant="ghost"
                     size="icon"
+                    aria-label="Add a video"
                     className="h-8 w-8 text-primary rounded-full hover:bg-primary/10"
                     onClick={() => videoInputRef.current?.click()}
                     disabled={isSubmitting}
@@ -202,10 +278,14 @@ export function CreateStatus() {
                   <Button
                     variant="ghost"
                     size="icon"
+                    aria-label="Emoji"
                     className="h-8 w-8 text-muted-foreground rounded-full"
                   >
                     <Smile className="h-4 w-4" />
                   </Button>
+                  <span className="ml-1 hidden text-[11px] text-muted-foreground sm:inline">
+                    up to {formatBytes(limit)} each
+                  </span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span
@@ -219,12 +299,10 @@ export function CreateStatus() {
                   <Button
                     size="sm"
                     className="h-8 px-4 rounded-full font-bold bg-primary text-primary-foreground hover:bg-primary/90"
-                    disabled={
-                      (!content.trim() && !mediaFile) || content.length > 280 || isSubmitting
-                    }
-                    onClick={() => createStatus.mutate(content)}
+                    disabled={!canPost}
+                    onClick={() => createPost.mutate(content)}
                   >
-                    {isSubmitting ? "Posting…" : "Post"}
+                    {isSubmitting ? "Posting…" : uploads.busy ? "Uploading…" : "Post"}
                   </Button>
                 </div>
               </motion.div>

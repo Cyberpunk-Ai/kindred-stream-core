@@ -23,6 +23,8 @@ import {
   Infinity as InfinityIcon,
 } from "lucide-react";
 import { resolveStoryGradient } from "@/features/stories/gradients";
+import { shareContent } from "@/lib/share";
+import { MediaGallery } from "@/components/social/media-gallery";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -625,27 +627,20 @@ export function StatusFeed({
   };
 
   const handleShare = async (status: any) => {
-    const url = `${window.location.origin}/social?status=${status.id}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: "Check out this post on GameFlex", url });
-        return;
-      } catch {
-        /* non-critical: ignore */
-      }
-      void recommendationEventService.recordEvent({
-        userId: user?.id ?? null,
-        entityType: "post",
-        entityId: status.id,
-        action: "share",
-      });
-    }
-    try {
-      await navigator.clipboard.writeText(url);
-      toast({ title: "Link copied!" });
-    } catch {
-      toast({ title: "Share link ready", description: url });
-    }
+    const outcome = await shareContent({
+      target: "post",
+      id: status.id,
+      title: "Check out this post on GameFlex",
+    });
+    void recommendationEventService.recordEvent({
+      userId: user?.id ?? null,
+      entityType: "post",
+      entityId: status.id,
+      action: "share",
+    });
+    if (outcome.method === "clipboard") toast({ title: "Link copied!" });
+    if (outcome.method === "manual")
+      toast({ title: "Share link ready", description: outcome.url });
   };
 
   const recentPosts = useMemo(() => {
@@ -829,6 +824,8 @@ export function StatusFeed({
                     <div className="aspect-[4/5] sm:aspect-auto sm:max-h-[600px] overflow-hidden flex items-center justify-center">
                       <AutoplayVideo src={status.media_url} />
                     </div>
+                  ) : Array.isArray(status.media_urls) && status.media_urls.length > 1 ? (
+                    <MediaGallery urls={status.media_urls as string[]} />
                   ) : (
                     <div className="aspect-[4/5] sm:aspect-auto overflow-hidden">
                       <img

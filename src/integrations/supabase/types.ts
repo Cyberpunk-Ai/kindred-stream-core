@@ -956,6 +956,8 @@ export type Database = {
           created_at: string
           id: string
           is_encrypted: boolean | null
+          parent_id: string | null
+          replies_count: number
           status_id: string
           user_id: string
         }
@@ -964,6 +966,8 @@ export type Database = {
           created_at?: string
           id?: string
           is_encrypted?: boolean | null
+          parent_id?: string | null
+          replies_count?: number
           status_id: string
           user_id: string
         }
@@ -972,10 +976,19 @@ export type Database = {
           created_at?: string
           id?: string
           is_encrypted?: boolean | null
+          parent_id?: string | null
+          replies_count?: number
           status_id?: string
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "status_comments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "status_comments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "status_comments_status_id_fkey"
             columns: ["status_id"]
@@ -1007,6 +1020,38 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "status_likes_status_id_fkey"
+            columns: ["status_id"]
+            isOneToOne: false
+            referencedRelation: "user_statuses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      status_reposts: {
+        Row: {
+          comment: string | null
+          created_at: string
+          id: string
+          status_id: string
+          user_id: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          status_id: string
+          user_id: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          status_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "status_reposts_status_id_fkey"
             columns: ["status_id"]
             isOneToOne: false
             referencedRelation: "user_statuses"
@@ -1262,13 +1307,16 @@ export type Database = {
           comments_count: number | null
           content: string | null
           created_at: string
+          edited_at: string | null
           expires_at: string | null
           game: string | null
           id: string
           likes_count: number | null
           media_type: string | null
           media_url: string | null
+          media_urls: Json
           post_type: string | null
+          reposts_count: number
           tags: string[] | null
           tournament_id: string | null
           user_id: string
@@ -1278,13 +1326,16 @@ export type Database = {
           comments_count?: number | null
           content?: string | null
           created_at?: string
+          edited_at?: string | null
           expires_at?: string | null
           game?: string | null
           id?: string
           likes_count?: number | null
           media_type?: string | null
           media_url?: string | null
+          media_urls?: Json
           post_type?: string | null
+          reposts_count?: number
           tags?: string[] | null
           tournament_id?: string | null
           user_id: string
@@ -1294,13 +1345,16 @@ export type Database = {
           comments_count?: number | null
           content?: string | null
           created_at?: string
+          edited_at?: string | null
           expires_at?: string | null
           game?: string | null
           id?: string
           likes_count?: number | null
           media_type?: string | null
           media_url?: string | null
+          media_urls?: Json
           post_type?: string | null
+          reposts_count?: number
           tags?: string[] | null
           tournament_id?: string | null
           user_id?: string
