@@ -137,9 +137,7 @@ export class FeedService {
         : Promise.resolve({ data: [] as { following_id: string }[] }),
     ]);
 
-    const profileMap = new Map(
-      (profilesRes.data ?? []).map((p: any) => [p.user_id, p] as const),
-    );
+    const profileMap = new Map((profilesRes.data ?? []).map((p: any) => [p.user_id, p] as const));
     const liked = new Set((likesRes.data ?? []).map((r: any) => r.status_id));
     const saved = new Set((savesRes.data ?? []).map((r: any) => r.status_id));
     const reposted = new Set((repostsRes.data ?? []).map((r: any) => r.status_id));
@@ -215,7 +213,9 @@ export class FeedService {
     if (options.mode === "trending") {
       items.sort(
         (a, b) =>
-          b.likes_count * 5 + b.comments_count * 4 + b.views_count * 0.2 -
+          b.likes_count * 5 +
+          b.comments_count * 4 +
+          b.views_count * 0.2 -
           (a.likes_count * 5 + a.comments_count * 4 + a.views_count * 0.2),
       );
     }

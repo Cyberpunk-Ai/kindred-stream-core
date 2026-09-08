@@ -18,7 +18,13 @@ export const repliesKey = (parentId: string) => ["social", "replies", parentId] 
 type CommentData = InfiniteData<CommentPage, string | null>;
 
 export function useComments(statusId: string, enabled = true) {
-  return useInfiniteQuery<CommentPage, Error, CommentData, ReturnType<typeof commentsKey>, string | null>({
+  return useInfiniteQuery<
+    CommentPage,
+    Error,
+    CommentData,
+    ReturnType<typeof commentsKey>,
+    string | null
+  >({
     queryKey: commentsKey(statusId),
     initialPageParam: null,
     enabled: enabled && !!statusId,

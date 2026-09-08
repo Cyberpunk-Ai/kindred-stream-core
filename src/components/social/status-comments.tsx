@@ -1,149 +1,200 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { recommendationEventService } from "@/services/recommendations/RecommendationEventService";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { backend } from "@/backend";
 import { useAuth } from "@/lib/auth-context";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Lock } from "lucide-react";
-import { encryptMessage, decryptMessage } from "@/lib/encryption";
+import { Loader2, Lock, Trash2 } from "lucide-react";
+import { decryptMessage } from "@/lib/encryption";
 import { useToast } from "@/hooks/use-toast";
-import { updateStatusCount } from "@/lib/social-analytics";
+import { formatDistanceToNow } from "date-fns";
+import {
+  commentsKey,
+  useAddComment,
+  useComments,
+  useDeleteComment,
+  useReplies,
+} from "@/features/social/hooks/useComments";
+import type { CommentItem } from "@/services/social/CommentService";
 
 interface StatusCommentsProps {
   statusId: string;
   commentsCount: number;
+  open?: boolean;
 }
 
-interface CommentProfile {
-  username: string;
-  avatar_url: string | null;
-}
-
-interface Comment {
-  id: string;
-  status_id: string;
-  user_id: string;
-  content: string;
-  is_encrypted: boolean;
-  created_at: string;
-  profile?: CommentProfile;
-}
-
-function serializeReplyContent(content: string, replyTo?: string | null) {
-  const trimmed = (replyTo ?? "").trim();
-  if (!trimmed) return content;
-  return `↩${trimmed}::${content}`;
-}
-
-function parseReplyContent(content: string) {
-  if (!content.startsWith("↩")) return { replyTo: null, body: content };
+/** Legacy comments were stored encrypted and/or with a serialized reply prefix. */
+function parseLegacyReply(content: string) {
+  if (!content.startsWith("↩")) return { replyTo: null as string | null, body: content };
   const separator = content.indexOf("::");
-  if (separator === -1) return { replyTo: null, body: content.slice(1) };
+  if (separator === -1) return { replyTo: null as string | null, body: content.slice(1) };
   return {
     replyTo: content.slice(1, separator).trim() || null,
     body: content.slice(separator + 2),
   };
 }
 
-async function decodeCommentContent(content: string, isEncrypted: boolean) {
-  if (content.startsWith("↩")) {
-    const { replyTo, body } = parseReplyContent(content);
-    let decodedBody = body;
-    if (isEncrypted && body) {
-      try {
-        decodedBody = await decryptMessage(body);
-      } catch {
-        decodedBody = body;
-      }
-    }
-    return replyTo ? `↩${replyTo}::${decodedBody}` : decodedBody;
-  }
-
-  if (isEncrypted) {
+async function decodeContent(content: string, isEncrypted?: boolean) {
+  const { replyTo, body } = parseLegacyReply(content);
+  let decoded = body;
+  if (isEncrypted && body) {
     try {
-      return await decryptMessage(content);
+      decoded = await decryptMessage(body);
     } catch {
-      return content;
+      decoded = body;
     }
   }
-
-  return content;
+  return replyTo ? `${replyTo}: ${decoded}` : decoded;
 }
 
-interface StatusCommentsPropsExtended extends StatusCommentsProps {
-  open?: boolean;
+function timeAgo(iso: string) {
+  return formatDistanceToNow(new Date(iso), { addSuffix: false })
+    .replace("about ", "")
+    .replace("less than a minute", "now")
+    .replace(" hours", "h")
+    .replace(" hour", "h")
+    .replace(" minutes", "m")
+    .replace(" minute", "m");
 }
 
-export function StatusComments({
-  statusId,
-  commentsCount,
-  open = false,
-}: StatusCommentsPropsExtended) {
+function CommentRow({
+  comment,
+  text,
+  canDelete,
+  onReply,
+  onDelete,
+}: {
+  comment: CommentItem;
+  text: string;
+  canDelete: boolean;
+  onReply: () => void;
+  onDelete: () => void;
+}) {
+  const [showReplies, setShowReplies] = useState(false);
+  const replies = useReplies(comment.id, showReplies);
+
+  return (
+    <div className="text-[14px] leading-[18px]">
+      <div className="flex items-start gap-2">
+        <Avatar className="h-7 w-7 shrink-0">
+          <AvatarImage src={comment.profile?.avatar_url ?? ""} alt="" />
+          <AvatarFallback className="bg-secondary text-[10px]">
+            {comment.profile?.username?.charAt(0).toUpperCase() ?? "?"}
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-bold tracking-tight">
+              {comment.profile?.username ?? "Unknown"}
+            </span>
+            <span className="text-[11px] text-muted-foreground">{timeAgo(comment.created_at)}</span>
+            {comment.is_encrypted && (
+              <Lock className="h-3 w-3 text-muted-foreground opacity-50" aria-label="Encrypted" />
+            )}
+            {comment.pending && <span className="text-[11px] text-muted-foreground">Posting…</span>}
+          </div>
+          <p className="break-words">{text}</p>
+          <div className="mt-1 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onReply}
+              className="text-[11px] uppercase tracking-wide text-primary/80 hover:text-primary"
+            >
+              Reply
+            </button>
+            {(comment.replies_count ?? 0) > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowReplies((v) => !v)}
+                className="text-[11px] text-muted-foreground hover:text-foreground"
+              >
+                {showReplies
+                  ? "Hide replies"
+                  : `View ${comment.replies_count} ${comment.replies_count === 1 ? "reply" : "replies"}`}
+              </button>
+            )}
+            {canDelete && (
+              <button
+                type="button"
+                onClick={onDelete}
+                aria-label="Delete comment"
+                className="text-muted-foreground hover:text-destructive"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+
+          {showReplies && (
+            <div className="mt-2 space-y-2 border-l border-border/50 pl-3">
+              {replies.isLoading && (
+                <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Loading replies…
+                </div>
+              )}
+              {replies.data?.items.map((reply) => (
+                <div key={reply.id} className="text-[13px]">
+                  <span className="mr-2 font-bold">{reply.profile?.username ?? "Unknown"}</span>
+                  <span className="break-words">{reply.content}</span>
+                </div>
+              ))}
+              {replies.isError && (
+                <button
+                  type="button"
+                  onClick={() => void replies.refetch()}
+                  className="text-[12px] text-primary"
+                >
+                  Couldn&apos;t load replies — retry
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function StatusComments({ statusId, commentsCount, open = false }: StatusCommentsProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [newComment, setNewComment] = useState("");
   const [isExpanded, setIsExpanded] = useState(open);
-  const [replyTarget, setReplyTarget] = useState<Comment | null>(null);
+  const [replyTarget, setReplyTarget] = useState<CommentItem | null>(null);
+  const [decoded, setDecoded] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     if (open) setIsExpanded(true);
   }, [open]);
-
   useEffect(() => {
     if (!isExpanded) setReplyTarget(null);
   }, [isExpanded]);
 
-  const [decryptedComments, setDecryptedComments] = useState<Map<string, string>>(new Map());
+  const query = useComments(statusId, isExpanded);
+  const addComment = useAddComment(statusId, user?.id ?? null);
+  const deleteComment = useDeleteComment(statusId);
 
-  const { data: comments = [], isLoading } = useQuery({
-    queryKey: ["status-comments", statusId],
-    queryFn: async () => {
-      const { data } = await backend
-        .from("status_comments")
-        .select("*")
-        .eq("status_id", statusId)
-        .order("created_at", { ascending: true });
+  const items = useMemo(() => query.data?.pages.flatMap((page) => page.items) ?? [], [query.data]);
 
-      if (!data) return [] as Comment[];
-
-      const userIds = [...new Set(data.map((c) => c.user_id))];
-      const { data: profiles } = await backend
-        .from("profiles")
-        .select("user_id, username, avatar_url")
-        .in("user_id", userIds);
-
-      const profileMap = new Map<string, CommentProfile>(
-        (profiles ?? []).map((p) => [
-          p.user_id,
-          { username: p.username, avatar_url: p.avatar_url },
-        ]),
-      );
-
-      return data.map((c) => ({
-        ...c,
-        profile: profileMap.get(c.user_id),
-      })) as Comment[];
-    },
-    enabled: isExpanded,
-  });
-
+  // Only legacy rows need decoding; new comments are stored as plain text.
   useEffect(() => {
-    async function decryptComments() {
-      const decrypted = new Map<string, string>();
-      for (const comment of comments) {
-        decrypted.set(
-          comment.id,
-          await decodeCommentContent(comment.content, comment.is_encrypted),
-        );
+    let cancelled = false;
+    const legacy = items.filter((c) => c.is_encrypted || c.content.startsWith("↩"));
+    if (!legacy.length) return;
+    (async () => {
+      const map = new Map<string, string>();
+      for (const comment of legacy) {
+        map.set(comment.id, await decodeContent(comment.content, comment.is_encrypted));
       }
-      setDecryptedComments(decrypted);
-    }
-    if (comments.length > 0) {
-      decryptComments();
-    }
-  }, [comments]);
+      if (!cancelled) setDecoded((prev) => new Map([...prev, ...map]));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [items]);
 
+  // Realtime nudges the cached list instead of refetching every page.
   useEffect(() => {
     if (!isExpanded) return;
     const channel = backend
@@ -157,71 +208,51 @@ export function StatusComments({
           filter: `status_id=eq.${statusId}`,
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: ["status-comments", statusId] });
+          queryClient.invalidateQueries({ queryKey: commentsKey(statusId), refetchType: "active" });
         },
       )
       .subscribe();
-
     return () => {
       backend.removeChannel(channel);
     };
   }, [statusId, isExpanded, queryClient]);
 
-  const addCommentMutation = useMutation({
-    mutationFn: async ({
-      content,
-      replyTarget,
-    }: {
-      content: string;
-      replyTarget: Comment | null;
-    }) => {
-      if (!user) throw new Error("Not authenticated");
-
-      let encryptedContent = content;
-      let isEncrypted = false;
-      try {
-        encryptedContent = await encryptMessage(content);
-        isEncrypted = true;
-      } catch {
-        encryptedContent = content;
+  const handleSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      const content = newComment.trim();
+      if (!content) return;
+      if (!user) {
+        toast({ title: "Sign in to comment" });
+        return;
       }
-
-      const payloadContent = serializeReplyContent(
-        encryptedContent,
-        replyTarget?.profile?.username,
-      );
-      const { error } = await backend.from("status_comments").insert({
-        status_id: statusId,
-        user_id: user.id,
-        content: payloadContent,
-        is_encrypted: isEncrypted,
-      });
-      if (error) throw error;
-      await updateStatusCount(backend, statusId, "comments_count", 1);
-    },
-    onSuccess: () => {
+      const parentId = replyTarget?.id ?? null;
       setNewComment("");
       setReplyTarget(null);
-      queryClient.invalidateQueries({ queryKey: ["user-statuses"] });
-      queryClient.invalidateQueries({ queryKey: ["status-comments", statusId] });
-      void recommendationEventService.recordEvent({
-        userId: user?.id ?? null,
-        entityType: "post",
-        entityId: statusId,
-        action: "comment",
-      });
+      addComment.mutate(
+        { content, parentId },
+        {
+          onSuccess: () => {
+            void recommendationEventService.recordEvent({
+              userId: user.id,
+              entityType: "post",
+              entityId: statusId,
+              action: "comment",
+            });
+          },
+          onError: (error: Error) => {
+            setNewComment(content);
+            toast({
+              title: "Couldn't post comment",
+              description: error.message,
+              variant: "destructive",
+            });
+          },
+        },
+      );
     },
-    onError: (error: Error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const content = newComment.trim();
-    if (!content) return;
-    addCommentMutation.mutate({ content, replyTarget });
-  };
+    [newComment, replyTarget, user, addComment, statusId, toast],
+  );
 
   return (
     <div className="mt-1">
@@ -235,7 +266,7 @@ export function StatusComments({
       )}
 
       {isExpanded && (
-        <div className="mt-1 space-y-2">
+        <div className="mt-1 space-y-3">
           <button
             type="button"
             onClick={() => setIsExpanded(false)}
@@ -243,54 +274,64 @@ export function StatusComments({
           >
             Hide comments
           </button>
-          {isLoading ? (
-            <div className="py-2 text-[14px] text-muted-foreground">Loading comments...</div>
-          ) : (
-            <div className="space-y-3">
-              {comments.map((comment) => {
-                const parsed = parseReplyContent(
-                  decryptedComments.get(comment.id) ?? comment.content,
-                );
-                return (
-                  <div
-                    key={comment.id}
-                    className="text-[14px] leading-[18px] group flex items-start justify-between gap-3"
-                  >
-                    <div className="flex-1">
-                      <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <span className="font-bold tracking-tight">
-                          {comment.profile?.username ?? "Unknown"}
-                        </span>
-                        {parsed.replyTo && (
-                          <span className="text-[11px] text-muted-foreground">
-                            replying to {parsed.replyTo}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[14px] break-words">{parsed.body}</div>
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                      {comment.is_encrypted && (
-                        <Lock className="h-3 w-3 text-muted-foreground opacity-50" />
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setReplyTarget(comment)}
-                        className="text-[11px] uppercase tracking-wide text-primary/80 hover:text-primary"
-                      >
-                        Reply
-                      </button>
-                    </div>
+
+          {query.isLoading && (
+            <div className="space-y-3" aria-live="polite">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex animate-pulse items-start gap-2">
+                  <div className="h-7 w-7 rounded-full bg-muted" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3 w-24 rounded bg-muted" />
+                    <div className="h-3 w-3/4 rounded bg-muted" />
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
+          )}
+
+          {query.isError && (
+            <div className="py-2 text-[13px] text-muted-foreground">
+              Couldn&apos;t load comments.{" "}
+              <button type="button" onClick={() => void query.refetch()} className="text-primary">
+                Retry
+              </button>
+            </div>
+          )}
+
+          {!query.isLoading && !query.isError && items.length === 0 && (
+            <p className="py-2 text-[13px] text-muted-foreground">
+              No comments yet — be the first to reply.
+            </p>
+          )}
+
+          <div className="space-y-3">
+            {items.map((comment) => (
+              <CommentRow
+                key={comment.id}
+                comment={comment}
+                text={decoded.get(comment.id) ?? comment.content}
+                canDelete={!!user && user.id === comment.user_id && !comment.pending}
+                onReply={() => setReplyTarget(comment)}
+                onDelete={() => deleteComment.mutate(comment.id)}
+              />
+            ))}
+          </div>
+
+          {query.hasNextPage && (
+            <button
+              type="button"
+              onClick={() => void query.fetchNextPage()}
+              disabled={query.isFetchingNextPage}
+              className="text-[13px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+            >
+              {query.isFetchingNextPage ? "Loading…" : "Load more comments"}
+            </button>
           )}
         </div>
       )}
 
       {replyTarget && (
-        <div className="mt-2 rounded-xl border border-border/50 bg-secondary/50 px-3 py-2 text-xs text-muted-foreground flex items-center justify-between gap-3">
+        <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-secondary/50 px-3 py-2 text-xs text-muted-foreground">
           <span>Replying to {replyTarget.profile?.username ?? "this comment"}</span>
           <button
             type="button"
@@ -303,25 +344,27 @@ export function StatusComments({
       )}
 
       {user && (
-        <form onSubmit={handleSubmit} className="mt-2 flex items-center relative">
-          <Avatar className="h-7 w-7 mr-3 shrink-0">
-            <AvatarImage src={user.user_metadata?.avatar_url ?? ""} />
+        <form onSubmit={handleSubmit} className="relative mt-2 flex items-center">
+          <Avatar className="mr-3 h-7 w-7 shrink-0">
+            <AvatarImage src={user.user_metadata?.avatar_url ?? ""} alt="" />
             <AvatarFallback className="bg-secondary text-[10px]">
               {user.email?.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <input
             type="text"
-            placeholder="Add a comment..."
+            aria-label="Add a comment"
+            placeholder={replyTarget ? "Write a reply…" : "Add a comment..."}
             value={newComment}
+            maxLength={1000}
             onChange={(e) => setNewComment(e.target.value)}
-            className="flex-1 bg-transparent text-[14px] outline-none placeholder:text-muted-foreground pr-10"
+            className="flex-1 bg-transparent pr-10 text-[14px] outline-none placeholder:text-muted-foreground"
           />
           {newComment.trim() && (
             <button
               type="submit"
-              disabled={addCommentMutation.isPending}
-              className="absolute right-0 text-primary text-[14px] font-bold hover:text-foreground transition-colors disabled:opacity-50"
+              disabled={addComment.isPending}
+              className="absolute right-0 text-[14px] font-bold text-primary transition-colors hover:text-foreground disabled:opacity-50"
             >
               Post
             </button>

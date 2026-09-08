@@ -20,6 +20,7 @@ export interface CommentItem {
   user_id: string;
   content: string;
   replies_count: number;
+  is_encrypted?: boolean;
   created_at: string;
   profile?: CommentAuthor | null;
   /** Set while an optimistic comment has not been confirmed yet. */
@@ -34,7 +35,8 @@ export interface CommentPage {
 export const COMMENT_PAGE_SIZE = 10;
 export const REPLY_PAGE_SIZE = 5;
 
-const COLUMNS = "id, status_id, parent_id, user_id, content, replies_count, created_at";
+const COLUMNS =
+  "id, status_id, parent_id, user_id, content, replies_count, is_encrypted, created_at";
 
 async function attachProfiles(rows: any[]): Promise<CommentItem[]> {
   if (!rows.length) return [];

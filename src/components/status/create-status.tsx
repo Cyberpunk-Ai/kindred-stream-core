@@ -173,9 +173,7 @@ export function CreateStatus() {
                         />
                       </div>
                       <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
-                        {item.phase === "uploading"
-                          ? `${item.percent}%`
-                          : item.phase}
+                        {item.phase === "uploading" ? `${item.percent}%` : item.phase}
                         {item.attempt > 1 ? ` · retry ${item.attempt}` : ""}
                       </p>
                     </div>

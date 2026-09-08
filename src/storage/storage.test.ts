@@ -53,17 +53,22 @@ test("bucket registry is the single source of truth", () => {
   assert.throws(() => getBucketConfig("bad-bucket"), /Unsupported GameFlex bucket/);
 });
 
-test("valid uploads pass the 10 MB limit and MIME rules", () => {
+test("valid uploads respect per-bucket limits and MIME rules", () => {
   const valid = new Blob([new Uint8Array(1024)], { type: "image/png" });
   assert.doesNotThrow(() => validateUploadLimits(valid, "image/png", "avatars"));
   assert.equal(MAX_UPLOAD_BYTES, 25 * 1024 * 1024);
 
+  // Post media accepts the full 25 MB ceiling.
   const max = new Blob([new Uint8Array(MAX_UPLOAD_BYTES)], { type: "image/jpeg" });
-  assert.doesNotThrow(() => validateUploadLimits(max, "image/jpeg", "avatars"));
+  assert.doesNotThrow(() => validateUploadLimits(max, "image/jpeg", "posts"));
 
   const oversized = new Blob([new Uint8Array(MAX_UPLOAD_BYTES + 1)], { type: "image/jpeg" });
+  assert.throws(() => validateUploadLimits(oversized, "image/jpeg", "posts"), /exceeds the/);
+
+  // Avatars stay deliberately capped at 10 MB.
+  const bigAvatar = new Blob([new Uint8Array(11 * 1024 * 1024)], { type: "image/jpeg" });
   assert.throws(
-    () => validateUploadLimits(oversized, "image/jpeg", "avatars"),
+    () => validateUploadLimits(bigAvatar, "image/jpeg", "avatars"),
     /exceeds the 10 MB/,
   );
 
