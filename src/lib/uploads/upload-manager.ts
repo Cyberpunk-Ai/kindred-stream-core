@@ -211,7 +211,13 @@ export async function uploadMedia(request: UploadRequest): Promise<UploadResult>
   };
 
   throwIfCancelled();
-  request.onProgress?.({ phase: "validating", loaded: 0, total: file.size, percent: 0, attempt: 1 });
+  request.onProgress?.({
+    phase: "validating",
+    loaded: 0,
+    total: file.size,
+    percent: 0,
+    attempt: 1,
+  });
 
   const limit = bucketLimitBytes(bucket);
   if (file.size > limit) {
@@ -266,7 +272,8 @@ export async function uploadMedia(request: UploadRequest): Promise<UploadResult>
         bytes: blob.size,
       };
     } catch (error) {
-      if (error instanceof UploadCancelledError || signal?.aborted) throw new UploadCancelledError();
+      if (error instanceof UploadCancelledError || signal?.aborted)
+        throw new UploadCancelledError();
       lastError = error;
       const message = error instanceof Error ? error.message : String(error);
       const retryable = RETRYABLE.test(message);

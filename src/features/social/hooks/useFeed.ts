@@ -6,7 +6,13 @@ import {
   type InfiniteData,
 } from "@tanstack/react-query";
 import { backend } from "@/backend";
-import { cursorOf, feedService, type FeedMode, type FeedPage, type FeedPost } from "@/services/social/FeedService";
+import {
+  cursorOf,
+  feedService,
+  type FeedMode,
+  type FeedPage,
+  type FeedPost,
+} from "@/services/social/FeedService";
 
 export const feedKey = (mode: FeedMode, viewerId?: string | null) =>
   ["social", "feed", mode, viewerId ?? "anon"] as const;
@@ -24,9 +30,11 @@ export function useFeed(mode: FeedMode, viewerId?: string | null) {
   const query = useInfiniteQuery<FeedPage, Error, FeedData, typeof key, string | null>({
     queryKey: key,
     initialPageParam: null,
-    queryFn: ({ pageParam }) =>
-      feedService.getPage({ mode, viewerId, cursor: pageParam ?? null }),
-    getNextPageParam: (last) => (last.nextCursor ? cursorOf({ created_at: last.nextCursor.createdAt, id: last.nextCursor.id }) : undefined),
+    queryFn: ({ pageParam }) => feedService.getPage({ mode, viewerId, cursor: pageParam ?? null }),
+    getNextPageParam: (last) =>
+      last.nextCursor
+        ? cursorOf({ created_at: last.nextCursor.createdAt, id: last.nextCursor.id })
+        : undefined,
     staleTime: 60_000,
     gcTime: 10 * 60_000,
     refetchOnWindowFocus: false,

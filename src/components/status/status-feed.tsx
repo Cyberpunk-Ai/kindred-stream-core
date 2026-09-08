@@ -25,6 +25,8 @@ import {
 import { resolveStoryGradient } from "@/features/stories/gradients";
 import { shareContent } from "@/lib/share";
 import { MediaGallery } from "@/components/social/media-gallery";
+import { useFeed } from "@/features/social/hooks/useFeed";
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -271,7 +273,7 @@ export function StatusFeed({
   const qc = useQueryClient();
   const { toast } = useToast();
   const viewedRef = useRef<Set<string>>(new Set());
-  const [visibleCount, setVisibleCount] = useState(10);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const [trendingKey, setTrendingKey] = useState(0);
 
   // UI state
@@ -292,159 +294,100 @@ export function StatusFeed({
     setSavedPosts(new Set(hydrated));
   }, [user?.id]);
 
-  // ── fetch ──
-  const { data: rawStatuses = [], isLoading } = useQuery({
-    queryKey: ["user-statuses", mode, user?.id ?? "anon", trendingKey],
-    queryFn: async () => {
-      if (mode === "foryou") {
-        try {
-          const { items } = await recommendationService.fetchRecommendations("home", user?.id, 50);
-          const data = items.map((item: any) => ({ ...item.payload, score: item.score }));
-          const userIds = [...new Set(data.map((s: any) => s.user_id))];
+  // ── cursor-paginated feed (keyset pagination + react-query caching) ──
+  const feed = useFeed(mode, user?.id ?? null);
+  const {
+    posts,
+    isLoading,
+    isError,
+    error: feedError,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = feed;
 
-          const [{ data: profiles }, likesRes, savesRes, followsRes] = await Promise.all([
-            backend.from("profiles").select("user_id, username, avatar_url").in("user_id", userIds),
-            user
-              ? backend.from("status_likes").select("status_id").eq("user_id", user.id)
-              : Promise.resolve({ data: [] }),
-            user
-              ? backend
-                  .from("status_saves")
-                  .select("status_id")
-                  .eq("user_id", user.id)
-                  .then(
-                    (r) => r,
-                    () => ({ data: [] as { status_id: string }[] }),
-                  )
-              : Promise.resolve({ data: [] as { status_id: string }[] }),
-            user
-              ? backend.from("user_follows").select("following_id").eq("follower_id", user.id)
-              : Promise.resolve({ data: [] }),
-          ]);
-
-          const profileMap = new Map(profiles?.map((p: any) => [p.user_id, p]) ?? []);
-          const userLikes = likesRes.data?.map((l: any) => l.status_id) ?? [];
-          const userSaves = savesRes.data?.map((s: any) => s.status_id) ?? [];
-          const userFollows = followsRes.data?.map((f: any) => f.following_id) ?? [];
-
-          if (user?.id) {
-            writeSavedPosts(window.localStorage, user.id, userSaves);
-            setSavedPosts(new Set(userSaves));
-          }
-
-          return data.map((s: any) => ({
-            ...s,
-            profile: profileMap.get(s.user_id),
-            isLiked: userLikes.includes(s.id),
-            isFollowing: userFollows.includes(s.user_id),
-          }));
-        } catch {
-          // Fallback to standard feed if recommendation service is unavailable.
-        }
-      }
-
-      let query = backend.from("user_statuses").select("*").is("expires_at", null);
-
-      if (mode === "following" && user) {
-        const { data: follows } = await backend
-          .from("user_follows")
-          .select("following_id")
-          .eq("follower_id", user.id);
-        const ids = follows?.map((f: any) => f.following_id) ?? [];
-        if (ids.length === 0) return [];
-        query = query.in("user_id", ids).order("created_at", { ascending: false });
-      } else {
-        query = query.order("created_at", { ascending: false }).limit(100);
-      }
-
-      const { data } = await query;
-      if (!data) return [];
-
-      const userIds = [...new Set(data.map((s: any) => s.user_id))];
-      const { data: profiles } = await backend
-        .from("profiles")
-        .select("user_id, username, avatar_url")
-        .in("user_id", userIds);
-      const profileMap = new Map(profiles?.map((p: any) => [p.user_id, p]) ?? []);
-
-      let userLikes: string[] = [];
-      let userSaves: string[] = [];
-      let userFollows: string[] = [];
-
-      if (user) {
-        const [likesRes, savesRes, followsRes] = await Promise.all([
-          backend.from("status_likes").select("status_id").eq("user_id", user.id),
-          backend
-            .from("status_saves")
-            .select("status_id")
-            .eq("user_id", user.id)
-            .then(
-              (r) => r,
-              () => ({ data: [] as { status_id: string }[] }),
-            ),
-          backend.from("user_follows").select("following_id").eq("follower_id", user.id),
-        ]);
-        userLikes = likesRes.data?.map((l: any) => l.status_id) ?? [];
-        userSaves = savesRes.data?.map((s: any) => s.status_id) ?? [];
-        userFollows = followsRes.data?.map((f: any) => f.following_id) ?? [];
-        if (user?.id) {
-          writeSavedPosts(window.localStorage, user.id, userSaves);
-          setSavedPosts(new Set(userSaves));
-        }
-      }
-
-      return data.map((s: any) => ({
-        ...s,
-        profile: profileMap.get(s.user_id),
-        isLiked: userLikes.includes(s.id),
-        isFollowing: userFollows.includes(s.user_id),
-      }));
-    },
-  });
-
-  // ── ranking ──
-  const rankedStatuses = useMemo(() => {
-    if (rawStatuses.length === 0) return [];
-    if (mode === "following") return rawStatuses;
-    if (mode === "trending") {
-      const cutoff = Date.now() - 72 * 3_600_000;
-      return [...rawStatuses]
-        .filter((s: any) => new Date(s.created_at).getTime() > cutoff)
-        .sort((a: any, b: any) => {
-          const sa =
-            (a.likes_count ?? 0) * 5 + (a.comments_count ?? 0) * 4 + (a.views_count ?? 0) * 0.2;
-          const sb =
-            (b.likes_count ?? 0) * 5 + (b.comments_count ?? 0) * 4 + (b.views_count ?? 0) * 0.2;
-          return sb - sa;
-        });
-    }
-    const now = Date.now();
-    const seed = getSessionSeed();
-    const seenUsers = new Set<string>();
-    const scored = rawStatuses.map((s: any, idx: number) => {
-      const h = (now - new Date(s.created_at).getTime()) / 3_600_000;
-      const score =
-        ((s.likes_count ?? 0) * 4 + (s.comments_count ?? 0) * 3 + (s.views_count ?? 0) * 0.1) *
-        Math.exp(-h / 48) *
-        (s.isFollowing ? 1.5 : 1.0) *
-        (s.media_url ? 1.3 : 1.0) *
-        (0.9 + seededRandom(seed + idx) * 0.2);
-      return { ...s, score };
+  // Keep the local "saved" set in sync with what the server hydrated.
+  useEffect(() => {
+    if (!user?.id || !posts.length) return;
+    const serverSaved = posts.filter((p) => p.isSaved).map((p) => p.id);
+    if (!serverSaved.length) return;
+    setSavedPosts((prev) => {
+      const next = new Set(prev);
+      serverSaved.forEach((id) => next.add(id));
+      return next;
     });
-    scored.sort((a: any, b: any) => b.score - a.score);
-    const diversified: any[] = [];
-    for (const item of scored) {
-      if (seenUsers.has(item.user_id)) continue;
-      diversified.push(item);
-      seenUsers.add(item.user_id);
-    }
-    for (const item of scored) {
-      if (!diversified.includes(item)) diversified.push(item);
-    }
-    return diversified;
-  }, [rawStatuses, mode]);
+  }, [posts, user?.id]);
 
-  const visible = rankedStatuses.filter((s: any) => !hiddenPosts.has(s.id)).slice(0, visibleCount);
+  const likeMut = {
+    mutate: ({ statusId, isLiked }: { statusId: string; isLiked: boolean }) => {
+      if (!user) {
+        toast({ title: "Sign in to like posts", variant: "destructive" });
+        return;
+      }
+      feed.like.mutate(
+        { postId: statusId, liked: isLiked },
+        {
+          onSuccess: () => {
+            if (!isLiked) {
+              void recommendationEventService.recordEvent({
+                userId: user.id,
+                entityType: "post",
+                entityId: statusId,
+                action: "like",
+                metadata: { source: mode },
+              });
+            }
+          },
+        },
+      );
+    },
+  };
+
+  const saveMut = {
+    mutate: ({ statusId, isSaved }: { statusId: string; isSaved: boolean }) => {
+      if (!user) {
+        toast({ title: "Sign in to save posts" });
+        return;
+      }
+      setSavedPosts((prev) => {
+        const next = new Set(prev);
+        if (isSaved) next.delete(statusId);
+        else next.add(statusId);
+        writeSavedPosts(window.localStorage, user.id, Array.from(next));
+        return next;
+      });
+      feed.save.mutate(
+        { postId: statusId, saved: isSaved },
+        {
+          onSuccess: () => {
+            toast({ title: isSaved ? "Removed from saved" : "Post saved!" });
+            if (!isSaved) {
+              void recommendationEventService.recordEvent({
+                userId: user.id,
+                entityType: "post",
+                entityId: statusId,
+                action: "save",
+                metadata: { source: mode },
+              });
+            }
+          },
+          onError: () => {
+            setSavedPosts((prev) => {
+              const next = new Set(prev);
+              if (isSaved) next.add(statusId);
+              else next.delete(statusId);
+              writeSavedPosts(window.localStorage, user.id, Array.from(next));
+              return next;
+            });
+            toast({ title: "Couldn't update saved posts", variant: "destructive" });
+          },
+        },
+      );
+    },
+  };
+
+  const visible = useMemo(() => posts.filter((s) => !hiddenPosts.has(s.id)), [posts, hiddenPosts]);
 
   // ── real-time: statuses + likes + comments ──
   useEffect(() => {
@@ -474,12 +417,13 @@ export function StatusFeed({
           entityType: "post",
           entityId: id,
           action: "view",
+          metadata: { source: mode },
         });
       } catch {
         /* non-critical: ignore */
       }
     },
-    [user?.id],
+    [user?.id, mode],
   );
 
   // ── view counting ──
@@ -494,109 +438,29 @@ export function StatusFeed({
             viewedRef.current.add(id);
             incrementView(id);
           }
-          const isLast = (entry.target as HTMLElement).dataset.isLast === "true";
-          if (isLast && visibleCount < rankedStatuses.length) {
-            setVisibleCount((p) => Math.min(p + 10, rankedStatuses.length));
-          }
         }
       },
       { threshold: 0.5 },
     );
     document.querySelectorAll("[data-status-id]").forEach((el) => io.observe(el));
     return () => io.disconnect();
-  }, [visible, visibleCount, rankedStatuses.length, incrementView]);
+  }, [visible, incrementView]);
+
+  // ── infinite scroll sentinel: prefetches the next page before the user hits the end ──
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasNextPage) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !isFetchingNextPage) void fetchNextPage();
+      },
+      { rootMargin: "800px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, visible.length]);
 
   // ── mutations ──
-  const likeMut = useMutation({
-    mutationFn: async ({ statusId, isLiked }: { statusId: string; isLiked: boolean }) => {
-      if (!user) throw new Error("Sign in to like posts");
-      if (isLiked) {
-        await backend
-          .from("status_likes")
-          .delete()
-          .eq("status_id", statusId)
-          .eq("user_id", user.id);
-        await updateStatusCount(backend, statusId, "likes_count", -1);
-      } else {
-        await backend.from("status_likes").insert({ status_id: statusId, user_id: user.id });
-        await updateStatusCount(backend, statusId, "likes_count", 1);
-      }
-    },
-    onMutate: async ({ statusId, isLiked }) => {
-      // optimistic update
-      await qc.cancelQueries({ queryKey: ["user-statuses"] });
-      const prev = qc.getQueryData(["user-statuses", mode, user?.id ?? "anon", trendingKey]);
-      qc.setQueryData(["user-statuses", mode, user?.id ?? "anon", trendingKey], (old: any) =>
-        old?.map((s: any) =>
-          s.id !== statusId
-            ? s
-            : {
-                ...s,
-                isLiked: !isLiked,
-                likes_count: (s.likes_count ?? 0) + (isLiked ? -1 : 1),
-              },
-        ),
-      );
-      return { prev };
-    },
-    onError: (_e, _v, ctx: any) => {
-      if (ctx?.prev)
-        qc.setQueryData(["user-statuses", mode, user?.id ?? "anon", trendingKey], ctx.prev);
-      toast({ title: "Sign in to like posts", variant: "destructive" });
-    },
-    onSuccess: (_data, { statusId, isLiked }) => {
-      if (!isLiked) {
-        void recommendationEventService.recordEvent({
-          userId: user?.id ?? null,
-          entityType: "post",
-          entityId: statusId,
-          action: "like",
-        });
-      }
-    },
-  });
-
-  const saveMut = useMutation({
-    mutationFn: async ({ statusId, isSaved }: { statusId: string; isSaved: boolean }) => {
-      if (!user) throw new Error("Sign in to save posts");
-      if (isSaved) {
-        await backend
-          .from("status_saves")
-          .delete()
-          .eq("status_id", statusId)
-          .eq("user_id", user.id);
-      } else {
-        await backend.from("status_saves").insert({ status_id: statusId, user_id: user.id });
-      }
-    },
-    onSuccess: (_d, { statusId, isSaved }) => {
-      setSavedPosts((prev) => {
-        const next = new Set(prev);
-        if (isSaved) next.delete(statusId);
-        else next.add(statusId);
-        return next;
-      });
-      toast({ title: isSaved ? "Removed from saved" : "Post saved!" });
-      if (!isSaved) {
-        void recommendationEventService.recordEvent({
-          userId: user?.id ?? null,
-          entityType: "post",
-          entityId: statusId,
-          action: "save",
-        });
-      }
-    },
-    onError: (_error, { statusId, isSaved }) => {
-      setSavedPosts((prev) => {
-        const next = new Set(prev);
-        if (isSaved) next.delete(statusId);
-        else next.add(statusId);
-        if (user?.id) writeSavedPosts(window.localStorage, user.id, Array.from(next));
-        return next;
-      });
-      toast({ title: isSaved ? "Removed locally" : "Saved locally" });
-    },
-  });
 
   const deleteMut = useMutation({
     mutationFn: async (id: string) => {
@@ -637,17 +501,17 @@ export function StatusFeed({
       entityType: "post",
       entityId: status.id,
       action: "share",
+      metadata: { authorId: status.user_id, mediaType: status.media_type, source: mode },
     });
     if (outcome.method === "clipboard") toast({ title: "Link copied!" });
-    if (outcome.method === "manual")
-      toast({ title: "Share link ready", description: outcome.url });
+    if (outcome.method === "manual") toast({ title: "Share link ready", description: outcome.url });
   };
 
   const recentPosts = useMemo(() => {
     if (mode !== "following") return 0;
     const t = Date.now() - 2 * 3_600_000;
-    return rawStatuses.filter((s: any) => new Date(s.created_at).getTime() > t).length;
-  }, [rawStatuses, mode]);
+    return posts.filter((s) => new Date(s.created_at).getTime() > t).length;
+  }, [posts, mode]);
 
   // ── loading ──
   if (isLoading)
@@ -801,14 +665,28 @@ export function StatusFeed({
                   onDelete={() => setDeleteTarget(status.id)}
                   onSave={() => saveMut.mutate({ statusId: status.id, isSaved })}
                   onShare={() => handleShare(status)}
-                  onReport={() =>
+                  onReport={() => {
+                    void recommendationEventService.recordEvent({
+                      userId: user?.id ?? null,
+                      entityType: "post",
+                      entityId: status.id,
+                      action: "report",
+                      metadata: { authorId: status.user_id, source: mode },
+                    });
                     toast({
                       title: "Report submitted",
                       description: "Thanks for keeping GameFlex safe.",
-                    })
-                  }
+                    });
+                  }}
                   onHide={() => {
                     setHiddenPosts((prev) => new Set(prev).add(status.id));
+                    void recommendationEventService.recordEvent({
+                      userId: user?.id ?? null,
+                      entityType: "post",
+                      entityId: status.id,
+                      action: "hide",
+                      metadata: { authorId: status.user_id, source: mode },
+                    });
                     toast({ title: "Post hidden" });
                   }}
                 />
@@ -978,15 +856,42 @@ export function StatusFeed({
           );
         })}
 
-        {visibleCount < rankedStatuses.filter((s: any) => !hiddenPosts.has(s.id)).length && (
+        {/* Infinite-scroll sentinel + end-of-feed handling */}
+        <div ref={sentinelRef} aria-hidden className="h-px w-full" />
+
+        {isFetchingNextPage && (
+          <div className="space-y-6 py-4" aria-live="polite">
+            {[1, 2].map((i) => (
+              <div key={i} className="animate-pulse md:border md:border-border/50 md:rounded-xl">
+                <div className="p-4 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-muted" />
+                  <div className="space-y-2">
+                    <div className="h-4 bg-muted rounded w-24" />
+                    <div className="h-3 bg-muted rounded w-16" />
+                  </div>
+                </div>
+                <div className="w-full aspect-square bg-muted" />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {hasNextPage && !isFetchingNextPage && (
           <div className="text-center py-6">
             <Button
               variant="outline"
               className="rounded-full font-bold"
-              onClick={() => setVisibleCount((p) => Math.min(p + 10, rankedStatuses.length))}
+              onClick={() => void fetchNextPage()}
             >
               Load more posts
             </Button>
+          </div>
+        )}
+
+        {!hasNextPage && visible.length > 0 && (
+          <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+            <InfinityIcon className="h-4 w-4" />
+            You&apos;re all caught up
           </div>
         )}
       </div>
