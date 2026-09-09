@@ -40,7 +40,7 @@ export const ROUTES = {
   REFUND: "/refund",
   REPORT: "/report",
   ADMIN: "/admin",
-  ADMIN_DASHBOARD: "/admin/dashboard",
+  ADMIN_DASHBOARD: "/admin",
   ADMIN_TOURNAMENTS: "/admin/tournaments",
   ADMIN_USERS: "/admin/users",
   ADMIN_PAYMENTS: "/admin/payments",

@@ -39,7 +39,8 @@ export class SupabaseStorageProvider implements StorageProvider {
     };
 
     return {
-      url: await this.getUrl(bucket, objectKey),
+      // Buckets are private: hand back a signed URL, never a public one.
+      url: await this.getSignedUrl(bucket, objectKey, 60 * 60 * 24 * 365 * 10),
       objectKey,
       metadata,
     };

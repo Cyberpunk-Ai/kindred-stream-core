@@ -35,13 +35,13 @@ export class SupabaseSearchProvider implements ISearchProvider {
       promises.push(
         backend
           .from("profiles")
-          .select("id, username, avatar_url")
+          .select("user_id, username, avatar_url")
           .ilike("username", `%${query}%`)
           .limit(limit)
           .then(({ data }) => {
             (data || []).forEach((p) =>
               results.push({
-                id: p.id,
+                id: p.user_id,
                 type: "players",
                 title: p.username || "Unknown",
                 imageUrl: p.avatar_url ?? undefined,

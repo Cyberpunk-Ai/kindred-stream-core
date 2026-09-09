@@ -132,8 +132,8 @@ export default function ReferralDashboard() {
           text: shareText,
           url: referralLink,
         });
-      } catch (e) {
-        console.log("Share canceled");
+      } catch {
+        // User dismissed the native share sheet — nothing to do.
       }
     } else {
       copyLink();
