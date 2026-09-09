@@ -14,7 +14,7 @@ import { backend } from "@/backend";
 import { signInWithOAuthProvider } from "@/lib/oauth";
 import { Tables } from "@/backend/database";
 import { track } from "@/lib/analytics";
-import { siteConfig } from "@/config/site";
+
 
 type Profile = Tables<"profiles">;
 
