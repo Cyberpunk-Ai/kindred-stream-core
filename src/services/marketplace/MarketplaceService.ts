@@ -99,8 +99,14 @@ export class MarketplaceService {
     listingId: string,
   ): Promise<{ url: string; error?: string }> {
     const path = `listings/${listingId}/${Date.now()}-${file.name}`;
-    const result = await mediaService.upload("marketplace", path, file);
-    return { url: result.url, error: result.error };
+    try {
+      const result = await mediaService.upload("marketplace", path, file);
+      if (result.error) return { url: "", error: result.error };
+      // The marketplace bucket is private, so always store a signed URL.
+      return { url: await getStorageUrl("marketplace", path) };
+    } catch (err: any) {
+      return { url: "", error: err?.message || String(err) };
+    }
   }
 
   async contactSeller(
