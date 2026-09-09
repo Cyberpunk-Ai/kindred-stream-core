@@ -1,6 +1,7 @@
 import { backend } from "@/backend";
 import type { Database } from "@/backend/database";
 import { mediaService } from "@/services/media/MediaService";
+import { getStorageUrl } from "@/lib/storage-url";
 
 export type MarketplaceListing = Database["public"]["Tables"]["marketplace_listings"]["Row"];
 export type MarketplaceListingInsert =
