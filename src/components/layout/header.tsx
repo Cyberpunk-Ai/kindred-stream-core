@@ -248,13 +248,19 @@ export function Header() {
           className="lg:hidden h-11 w-11"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={mobileMenuOpen}
+          aria-controls="mobile-menu"
         >
           {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </Button>
       </nav>
 
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-border/50 backdrop-blur-xl bg-background/95">
+        <div
+          id="mobile-menu"
+          role="menu"
+          className="lg:hidden border-t border-border/50 backdrop-blur-xl bg-background/95"
+        >
           <div className="container mx-auto p-4 space-y-2">
             {navigation.map((item) => (
               <Link

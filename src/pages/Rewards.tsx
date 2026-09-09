@@ -79,20 +79,29 @@ const Rewards = () => {
     };
   }, [user, queryClient, toast]);
 
+  // Claims are reviewed by an admin before any payout — the client never marks
+  // a reward as claimed itself (that would bypass the payout step entirely).
   const claimMutation = useMutation({
     mutationFn: async (rewardId: string) => {
-      const { error } = await backend
-        .from("rewards")
-        .update({ status: "claimed", claimed_at: new Date().toISOString() })
-        .eq("id", rewardId);
+      if (!user) throw new Error("You need to be signed in to claim a reward.");
+      const reward = rewards?.find((r: any) => r.id === rewardId);
+      const amount = reward ? Number(reward.amount).toLocaleString() : "";
+
+      const { error } = await backend.from("notifications").insert({
+        user_id: user.id,
+        type: "payment",
+        title: "Reward Claim Submitted",
+        message: `Your claim${amount ? ` for KES ${amount}` : ""} is being processed. An admin will review it shortly.`,
+        action_url: "/rewards",
+      });
 
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["rewards"] });
       toast({
-        title: "Reward Claimed!",
-        description: "Your reward will be processed shortly.",
+        title: "Claim submitted!",
+        description: "Our team will review it and credit your wallet shortly.",
       });
     },
     onError: (error: any) => {

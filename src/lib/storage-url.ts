@@ -16,8 +16,10 @@ export async function getStorageUrl(
   const { data, error } = await backend.storage.from(bucket).createSignedUrl(path, expiresIn);
 
   if (error || !data?.signedUrl) {
-    // Fall back to the public URL shape so callers always get a string.
-    return backend.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+    // Never fall back to a public URL: private buckets return 400 for those,
+    // which would silently persist a dead link on the record.
+    console.error("[storage] failed to sign URL", { bucket, path, error });
+    throw error ?? new Error("Could not create a link for the uploaded file. Please try again.");
   }
 
   return data.signedUrl;

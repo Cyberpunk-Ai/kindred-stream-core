@@ -14,7 +14,7 @@ import { backend } from "@/backend";
 import { signInWithOAuthProvider } from "@/lib/oauth";
 import { Tables } from "@/backend/database";
 import { track } from "@/lib/analytics";
-import { siteConfig } from "@/config/site";
+
 
 type Profile = Tables<"profiles">;
 
@@ -236,15 +236,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       password,
     });
-    const loginDomain = (() => {
-      try {
-        return new URL(siteConfig.url).hostname;
-      } catch {
-        return "gameflex.co.ke";
-      }
-    })();
-    if (!error)
-      void track("login", { method: email.includes(`@${loginDomain}`) ? "phone" : "email" });
+    if (!error) void track("login", { method: email.includes("@") ? "email" : "phone" });
     return {
       error: error ? new Error(error.message) : null,
       needsEmailConfirmation: !!error && /confirm/i.test(error.message ?? ""),
