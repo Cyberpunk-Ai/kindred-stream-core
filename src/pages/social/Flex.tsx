@@ -163,6 +163,17 @@ export default function Flex() {
         if (error && !/duplicate key/i.test(error.message ?? "")) throw error;
       }
     },
+    onSuccess: (_d, { flexId, isLiked }) => {
+      queryClient.setQueryData(["flexes", user?.id], (old: any) =>
+        Array.isArray(old)
+          ? old.map((f: any) =>
+              f.id === flexId
+                ? { ...f, likes_count: Math.max(0, (f.likes_count ?? 0) + (isLiked ? -1 : 1)) }
+                : f,
+            )
+          : old,
+      );
+    },
     onError: (error: any) => {
       toast({
         title: "Could not save your reaction",
@@ -306,6 +317,32 @@ export default function Flex() {
     videos.forEach((v) => observer.observe(v));
     return () => observer.disconnect();
   }, [flexes]);
+
+  // Deep link: /flex?v=<id> opens straight on that clip.
+  useEffect(() => {
+    if (!flexes.length || typeof window === "undefined") return;
+    const wanted = new URLSearchParams(window.location.search).get("v");
+    if (!wanted) return;
+    const idx = flexes.findIndex((f: any) => f.id === wanted);
+    if (idx < 0) return;
+    const el = containerRef.current?.children?.[idx] as HTMLElement | undefined;
+    el?.scrollIntoView({ behavior: "auto", block: "start" });
+    setActiveIndex(idx);
+  }, [flexIdKey, flexes]);
+
+  // Count a view once per clip per viewer.
+  useEffect(() => {
+    const current = flexes[activeIndex];
+    if (!current?.id || viewedRef.current.has(current.id)) return;
+    viewedRef.current.add(current.id);
+    void recordStatusView(backend, current.id, user?.id);
+    void recommendationEventService.recordEvent({
+      userId: user?.id ?? null,
+      entityType: "flex",
+      entityId: current.id,
+      action: "flex_view",
+    });
+  }, [activeIndex, flexes, user?.id]);
 
   const handleVideoClick = () => {
     setMuted((prev) => !prev);
