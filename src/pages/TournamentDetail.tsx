@@ -115,13 +115,6 @@ export default function TournamentDetail() {
 
       const profileMap = new Map(profiles?.map((p) => [p.user_id, p]) ?? []);
 
-      // Real ranking points for each entrant, fetched in one query (no N+1).
-      const { data: stats } = await backend
-        .from("leaderboard_stats")
-        .select("user_id, points, wins, losses")
-        .in("user_id", userIds);
-      const statsMap = new Map((stats ?? []).map((s: any) => [s.user_id, s]));
-
       return data.map((m) => ({
         ...m,
         player1: m.player1_id ? profileMap.get(m.player1_id) : null,
