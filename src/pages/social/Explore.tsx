@@ -12,7 +12,12 @@ import { useAuth } from "@/lib/auth-context";
 export default function Explore() {
   const { user } = useAuth();
 
-  const { data: posts = [] } = useQuery({
+  const {
+    data: posts = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["explore-posts", user?.id],
     queryFn: async () => {
       try {
@@ -34,7 +39,23 @@ export default function Explore() {
 
   return (
     <SocialLayout title="Explore" subtitle="Discover top gaming moments across the community">
-      {posts.length === 0 ? (
+      {isLoading ? (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <div key={i} className="aspect-square rounded-lg bg-secondary animate-pulse" />
+          ))}
+        </div>
+      ) : isError ? (
+        <div className="text-center py-16 space-y-4">
+          <p className="text-muted-foreground">We couldn't load posts right now.</p>
+          <button
+            onClick={() => void refetch()}
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold"
+          >
+            Try again
+          </button>
+        </div>
+      ) : posts.length === 0 ? (
         <p className="text-center text-muted-foreground py-16">
           No posts to explore yet — be the first to share a clip.
         </p>
