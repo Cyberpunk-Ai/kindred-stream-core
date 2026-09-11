@@ -242,17 +242,17 @@ export default function TournamentDetail() {
 
       {/* Header */}
       <div className="rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/30 p-8 mb-8 relative overflow-hidden">
-        {tournament.image_url && (
-          <div className="absolute inset-0 opacity-20">
-            <img
-              loading="lazy"
-              decoding="async"
-              src={optimizeImageUrl(tournament.image_url, { width: 1200, quality: 80 })}
-              alt=""
-              className="w-full h-full object-cover"
-            />
-          </div>
-        )}
+        <div className="absolute inset-0 opacity-20">
+          <OptimizedImage
+            src={tournament.image_url || gameCover(tournament.game)}
+            fallbackSrc={gameCover(tournament.game)}
+            alt=""
+            widthParam={1200}
+            qualityParam={80}
+            containerClassName="w-full h-full"
+            className="w-full h-full object-cover"
+          />
+        </div>
         <div className="relative flex flex-col md:flex-row md:items-start justify-between gap-6">
           <div>
             <Badge

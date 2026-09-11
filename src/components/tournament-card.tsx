@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { OptimizedImage } from "@/components/ui/optimized-image";
+import { gameCover } from "@/constants/game-covers";
 import { lobbyCount, lobbyLabel, lobbySize, plannedLobbyCount } from "@/lib/lobbies";
 
 interface TournamentCardProps {
@@ -121,9 +122,10 @@ export const TournamentCard = forwardRef<HTMLDivElement, TournamentCardProps>(
         )}
       >
         {/* Tournament Image — capped to the slot size instead of full resolution */}
-        {tournament.image_url && (
+        {(tournament.image_url || gameCover(tournament.game)) && (
           <OptimizedImage
-            src={tournament.image_url}
+            src={tournament.image_url || gameCover(tournament.game)}
+            fallbackSrc={gameCover(tournament.game)}
             alt={tournament.title}
             widthParam={640}
             qualityParam={75}
@@ -146,7 +148,7 @@ export const TournamentCard = forwardRef<HTMLDivElement, TournamentCardProps>(
         </div>
 
         {/* Game Icon Background */}
-        {!tournament.image_url && (
+        {false && (
           <div className="absolute -top-10 -right-10 text-[120px] opacity-10 pointer-events-none">
             {gameIcons[tournament.game] || gameIcons.other}
           </div>
