@@ -654,7 +654,11 @@ export function StatusFeed({
                           #{idx + 1}
                         </span>
                       )}
-                      <span className="text-muted-foreground text-sm">
+                      <Link
+                        to={`/post/${status.id}`}
+                        className="text-muted-foreground text-sm hover:text-foreground transition-colors"
+                        aria-label="Open this post"
+                      >
                         ·{" "}
                         {formatDistanceToNow(new Date(status.created_at), { addSuffix: false })
                           .replace("about ", "")
@@ -663,7 +667,7 @@ export function StatusFeed({
                           .replace(" hour", "h")
                           .replace(" minutes", "m")
                           .replace(" minute", "m")}
-                      </span>
+                      </Link>
                     </div>
                   </div>
                 </div>
