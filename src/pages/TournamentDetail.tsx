@@ -20,6 +20,8 @@ import { useToast } from "@/hooks/use-toast";
 import { backend } from "@/backend";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn, formatExternalUrl } from "@/lib/utils";
+import { OptimizedImage } from "@/components/ui/optimized-image";
+import { gameCover } from "@/constants/game-covers";
 import { buildLobbies, findLobbySlot, lobbySize, plannedLobbyCount } from "@/lib/lobbies";
 
 const statusLabels: Record<string, string> = {
@@ -147,7 +149,15 @@ export default function TournamentDetail() {
 
       const profileMap = new Map(profiles?.map((p) => [p.user_id, p]) ?? []);
 
+      // Real ranking points for each entrant, fetched in one query (no N+1).
+      const { data: stats } = await backend
+        .from("leaderboard_stats")
+        .select("user_id, points, wins, losses")
+        .in("user_id", userIds);
+      const statsMap = new Map((stats ?? []).map((s: any) => [s.user_id, s]));
+
       return regsData.map((r) => ({
+        stats: statsMap.get(r.user_id) ?? null,
         ...r,
         profiles: profileMap.get(r.user_id),
       }));
@@ -242,17 +252,17 @@ export default function TournamentDetail() {
 
       {/* Header */}
       <div className="rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/30 p-8 mb-8 relative overflow-hidden">
-        {tournament.image_url && (
-          <div className="absolute inset-0 opacity-20">
-            <img
-              loading="lazy"
-              decoding="async"
-              src={optimizeImageUrl(tournament.image_url, { width: 1200, quality: 80 })}
-              alt=""
-              className="w-full h-full object-cover"
-            />
-          </div>
-        )}
+        <div className="absolute inset-0 opacity-20">
+          <OptimizedImage
+            src={tournament.image_url || gameCover(tournament.game)}
+            fallbackSrc={gameCover(tournament.game)}
+            alt=""
+            widthParam={1200}
+            qualityParam={80}
+            containerClassName="w-full h-full"
+            className="w-full h-full object-cover"
+          />
+        </div>
         <div className="relative flex flex-col md:flex-row md:items-start justify-between gap-6">
           <div>
             <Badge
@@ -641,6 +651,10 @@ export default function TournamentDetail() {
                             </span>
                             <span className="text-xs text-muted-foreground truncate block">
                               {reg.game_handle}
+                            </span>
+                            <span className="text-[11px] text-primary/90 truncate block">
+                              {(reg.stats?.points ?? 0).toLocaleString()} pts
+                              {reg.stats ? ` • ${reg.stats.wins ?? 0}W-${reg.stats.losses ?? 0}L` : ""}
                             </span>
                           </div>
                         </div>

@@ -33,7 +33,7 @@ import { cn } from "@/lib/utils";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { StatusComments } from "@/components/social/status-comments";
 import { useToast } from "@/hooks/use-toast";
-import { readSavedPosts, writeSavedPosts, updateStatusCount } from "@/lib/social-analytics";
+import { readSavedPosts, writeSavedPosts, recordStatusView } from "@/lib/social-analytics";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   DropdownMenu,
@@ -389,29 +389,39 @@ export function StatusFeed({
 
   const visible = useMemo(() => posts.filter((s) => !hiddenPosts.has(s.id)), [posts, hiddenPosts]);
 
-  // ── real-time: statuses + likes + comments ──
+  // ── real-time counters ──
+  // Counters are maintained by the database, so live updates only need to
+  // patch the affected post in place. Refetching the whole feed here is what
+  // used to make posts jump around and reset the heart the moment you tapped it.
+  const patchPost = feed.patchPost;
   useEffect(() => {
     const ch = backend
       .channel("feed-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "user_statuses" }, () =>
-        qc.invalidateQueries({ queryKey: ["user-statuses"] }),
-      )
-      .on("postgres_changes", { event: "*", schema: "public", table: "status_likes" }, () =>
-        qc.invalidateQueries({ queryKey: ["user-statuses"] }),
-      )
-      .on("postgres_changes", { event: "*", schema: "public", table: "status_comments" }, () =>
-        qc.invalidateQueries({ queryKey: ["user-statuses"] }),
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "user_statuses" },
+        (payload: any) => {
+          const row = payload?.new;
+          if (!row?.id) return;
+          patchPost(row.id, {
+            likes_count: row.likes_count ?? 0,
+            comments_count: row.comments_count ?? 0,
+            reposts_count: row.reposts_count ?? 0,
+            views_count: row.views_count ?? 0,
+            content: row.content ?? null,
+          });
+        },
       )
       .subscribe();
     return () => {
       backend.removeChannel(ch);
     };
-  }, [qc]);
+  }, [patchPost]);
 
   const incrementView = useCallback(
     async (id: string) => {
       try {
-        await updateStatusCount(backend, id, "views_count", 1);
+        await recordStatusView(backend, id, user?.id);
         void recommendationEventService.recordEvent({
           userId: user?.id ?? null,
           entityType: "post",
@@ -644,7 +654,11 @@ export function StatusFeed({
                           #{idx + 1}
                         </span>
                       )}
-                      <span className="text-muted-foreground text-sm">
+                      <Link
+                        to={`/post/${status.id}`}
+                        className="text-muted-foreground text-sm hover:text-foreground transition-colors"
+                        aria-label="Open this post"
+                      >
                         ·{" "}
                         {formatDistanceToNow(new Date(status.created_at), { addSuffix: false })
                           .replace("about ", "")
@@ -653,7 +667,7 @@ export function StatusFeed({
                           .replace(" hour", "h")
                           .replace(" minutes", "m")
                           .replace(" minute", "m")}
-                      </span>
+                      </Link>
                     </div>
                   </div>
                 </div>

@@ -10,7 +10,7 @@ import { Heart, Eye, ArrowLeft, MessageCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/hooks/use-toast";
-import { updateStatusCount } from "@/lib/social-analytics";
+import { recordStatusView } from "@/lib/social-analytics";
 import { cn } from "@/lib/utils";
 
 export default function PostDetail() {
@@ -49,11 +49,11 @@ export default function PostDetail() {
   // Track view count on load
   useEffect(() => {
     if (id) {
-      updateStatusCount(backend, id, "views_count", 1).then(() => {
+      void recordStatusView(backend, id, user?.id).then(() => {
         queryClient.invalidateQueries({ queryKey: ["post", id] });
       });
     }
-  }, [id, queryClient]);
+  }, [id, queryClient, user?.id]);
 
   // Realtime subscription for this post's likes/comments/views updates
   useEffect(() => {
@@ -93,11 +93,17 @@ export default function PostDetail() {
       if (!user) throw new Error("Sign in to like posts");
       if (!id) throw new Error("Missing post id");
       if (post?.isLiked) {
-        await backend.from("status_likes").delete().eq("status_id", id).eq("user_id", user.id);
-        await updateStatusCount(backend, id, "likes_count", -1);
+        const { error } = await backend
+          .from("status_likes")
+          .delete()
+          .eq("status_id", id)
+          .eq("user_id", user.id);
+        if (error) throw error;
       } else {
-        await backend.from("status_likes").insert({ status_id: id, user_id: user.id });
-        await updateStatusCount(backend, id, "likes_count", 1);
+        const { error } = await backend
+          .from("status_likes")
+          .insert({ status_id: id, user_id: user.id });
+        if (error && !/duplicate key/i.test(error.message ?? "")) throw error;
       }
     },
     onMutate: async () => {

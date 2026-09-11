@@ -1,6 +1,6 @@
 import { backend } from "@/backend";
 import type { Database } from "@/backend/database";
-import { updateStatusCount } from "@/lib/social-analytics";
+import { recordStatusView } from "@/lib/social-analytics";
 
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type ActivityItem = Database["public"]["Tables"]["activity_feed"]["Row"];
@@ -308,10 +308,8 @@ export class SocialService {
     try {
       if (isLiked) {
         await backend.from("status_likes").delete().eq("status_id", statusId).eq("user_id", userId);
-        await updateStatusCount(backend, statusId, "likes_count", -1);
       } else {
         await backend.from("status_likes").insert({ status_id: statusId, user_id: userId });
-        await updateStatusCount(backend, statusId, "likes_count", 1);
       }
       return {};
     } catch (err: any) {
@@ -344,7 +342,7 @@ export class SocialService {
   }
 
   async incrementStatusViews(statusId: string): Promise<void> {
-    await updateStatusCount(backend, statusId, "views_count", 1);
+    await recordStatusView(backend, statusId);
   }
 
   async commentOnStatus(
