@@ -14,7 +14,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { resolveStoryGradient, isVideoStory } from "@/features/stories/gradients";
 import { formatStoryRemainingBadge } from "@/lib/story-utils";
 import { encryptMessage, decryptMessage } from "@/lib/encryption";
-import { updateEntityCount } from "@/lib/social-analytics";
+import { recordStatusView } from "@/lib/social-analytics";
 
 // ─── emoji reactions ──────────────────────────────────────────────────────────
 
@@ -159,8 +159,8 @@ export function StoryViewer({
   useEffect(() => {
     if (!story?.id || viewedRef.current.has(story.id)) return;
     viewedRef.current.add(story.id);
-    void import("@/lib/social-analytics").then(({ updateEntityCount }) =>
-      updateEntityCount(backend, "user_statuses", story.id, "views_count", 1).then(() => {
+    void import("@/lib/social-analytics").then(({ recordStatusView }) =>
+      recordStatusView(backend, story.id, user?.id).then(() => {
         qc.invalidateQueries({ queryKey: ["my-stories"] });
         qc.invalidateQueries({ queryKey: ["stories-grid"] });
         qc.invalidateQueries({ queryKey: ["stories-rail"] });
@@ -223,13 +223,11 @@ export function StoryViewer({
           .eq("status_id", story.id)
           .eq("user_id", user.id);
         if (error) throw error;
-        await updateEntityCount(backend, "user_statuses", story.id, "likes_count", -1);
       } else {
         const { error } = await backend
           .from("status_likes")
           .insert({ status_id: story.id, user_id: user.id });
         if (error) throw error;
-        await updateEntityCount(backend, "user_statuses", story.id, "likes_count", 1);
       }
     },
     onSuccess: () => {
@@ -272,7 +270,6 @@ export function StoryViewer({
       };
       const { error } = await backend.from("status_comments").insert(insertPayload);
       if (error) throw error;
-      await updateEntityCount(backend, "user_statuses", story.id, "comments_count", 1);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["story-comments", story?.id] });

@@ -33,7 +33,7 @@ import { cn } from "@/lib/utils";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { StatusComments } from "@/components/social/status-comments";
 import { useToast } from "@/hooks/use-toast";
-import { readSavedPosts, writeSavedPosts, updateStatusCount } from "@/lib/social-analytics";
+import { readSavedPosts, writeSavedPosts, recordStatusView } from "@/lib/social-analytics";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   DropdownMenu,
@@ -411,7 +411,7 @@ export function StatusFeed({
   const incrementView = useCallback(
     async (id: string) => {
       try {
-        await updateStatusCount(backend, id, "views_count", 1);
+        await recordStatusView(backend, id, user?.id);
         void recommendationEventService.recordEvent({
           userId: user?.id ?? null,
           entityType: "post",
