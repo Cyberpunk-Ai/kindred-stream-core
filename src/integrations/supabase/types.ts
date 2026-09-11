@@ -1088,6 +1088,38 @@ export type Database = {
           },
         ]
       }
+      status_views: {
+        Row: {
+          created_at: string
+          id: string
+          status_id: string
+          user_id: string | null
+          viewer_key: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          status_id: string
+          user_id?: string | null
+          viewer_key: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          status_id?: string
+          user_id?: string | null
+          viewer_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "status_views_status_id_fkey"
+            columns: ["status_id"]
+            isOneToOne: false
+            referencedRelation: "user_statuses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       support_tickets: {
         Row: {
           assigned_to: string | null
@@ -1422,6 +1454,10 @@ export type Database = {
         Returns: boolean
       }
       recompute_player_stats: { Args: { _user_id: string }; Returns: undefined }
+      record_status_view: {
+        Args: { _status_id: string; _viewer_key: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
