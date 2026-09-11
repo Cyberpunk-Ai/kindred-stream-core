@@ -31,6 +31,8 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatDistanceToNow } from "date-fns";
+import { shareContent } from "@/lib/share";
+import { recordStatusView } from "@/lib/social-analytics";
 
 export default function Flex() {
   const { user } = useAuth();
@@ -44,9 +46,16 @@ export default function Flex() {
   const [commentText, setCommentText] = useState("");
   const [likedFlexIds, setLikedFlexIds] = useState<Set<string>>(new Set());
   const [savedFlexIds, setSavedFlexIds] = useState<Set<string>>(new Set());
+  const [followingIds, setFollowingIds] = useState<Set<string>>(new Set());
+  const viewedRef = useRef<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { data: flexes = [] } = useQuery({
+  const {
+    data: flexes = [],
+    isLoading: flexesLoading,
+    isError: flexesError,
+    refetch: refetchFlexes,
+  } = useQuery({
     queryKey: ["flexes", user?.id],
     queryFn: async () => {
       try {
@@ -78,6 +87,33 @@ export default function Flex() {
     },
   });
 
+  const flexIds = flexes.map((f: any) => f.id);
+  const flexIdKey = flexIds.join(",");
+  const authorIds = [...new Set(flexes.map((f: any) => f.user_id))].filter(Boolean) as string[];
+
+  // Which of these clips the signed-in viewer already liked / saved, and who
+  // they already follow. Without this the heart and bookmark reset on refresh.
+  useQuery({
+    queryKey: ["flex-viewer-state", user?.id, flexIdKey],
+    enabled: !!user && flexIds.length > 0,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const [likes, saves, follows] = await Promise.all([
+        backend.from("status_likes").select("status_id").eq("user_id", user!.id).in("status_id", flexIds),
+        backend.from("status_saves").select("status_id").eq("user_id", user!.id).in("status_id", flexIds),
+        backend
+          .from("user_follows")
+          .select("following_id")
+          .eq("follower_id", user!.id)
+          .in("following_id", authorIds.length ? authorIds : ["00000000-0000-0000-0000-000000000000"]),
+      ]);
+      setLikedFlexIds(new Set((likes.data ?? []).map((r: any) => r.status_id)));
+      setSavedFlexIds(new Set((saves.data ?? []).map((r: any) => r.status_id)));
+      setFollowingIds(new Set((follows.data ?? []).map((r: any) => r.following_id)));
+      return true;
+    },
+  });
+
   // Fetch comments for selected flex
   const { data: comments = [] } = useQuery({
     queryKey: ["flex-comments", selectedFlexId],
@@ -88,7 +124,9 @@ export default function Flex() {
           .from("status_comments")
           .select("*")
           .eq("status_id", selectedFlexId!)
-          .order("created_at", { ascending: true });
+          .is("parent_id", null)
+          .order("created_at", { ascending: false })
+          .limit(50);
 
         if (!commentsData) return [];
 
@@ -110,23 +148,27 @@ export default function Flex() {
     mutationFn: async ({ flexId, isLiked }: { flexId: string; isLiked: boolean }) => {
       if (!user) throw new Error("Sign in required");
 
-      try {
-        if (isLiked) {
-          await backend
-            .from("status_likes")
-            .delete()
-            .eq("status_id", flexId)
-            .eq("user_id", user.id);
-        } else {
-          await backend.from("status_likes").insert({ status_id: flexId, user_id: user.id });
-        }
-      } catch (err) {
-        // Table might not exist - use optimistic UI only
-        toast({ title: isLiked ? "Unliked" : "Liked!", description: "This feature is in beta." });
+      if (isLiked) {
+        const { error } = await backend
+          .from("status_likes")
+          .delete()
+          .eq("status_id", flexId)
+          .eq("user_id", user.id);
+        if (error) throw error;
+      } else {
+        const { error } = await backend
+          .from("status_likes")
+          .insert({ status_id: flexId, user_id: user.id });
+        // A second tap on the same clip must not surface as an error.
+        if (error && !/duplicate key/i.test(error.message ?? "")) throw error;
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["flexes"] });
+    onError: (error: any) => {
+      toast({
+        title: "Could not save your reaction",
+        description: error?.message ?? "Please try again.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -134,19 +176,26 @@ export default function Flex() {
     mutationFn: async ({ flexId, isSaved }: { flexId: string; isSaved: boolean }) => {
       if (!user) throw new Error("Sign in required");
 
-      try {
-        if (isSaved) {
-          await backend
-            .from("status_saves")
-            .delete()
-            .eq("status_id", flexId)
-            .eq("user_id", user.id);
-        } else {
-          await backend.from("status_saves").insert({ status_id: flexId, user_id: user.id });
-        }
-      } catch (err) {
-        toast({ title: isSaved ? "Unsaved" : "Saved!", description: "This feature is in beta." });
+      if (isSaved) {
+        const { error } = await backend
+          .from("status_saves")
+          .delete()
+          .eq("status_id", flexId)
+          .eq("user_id", user.id);
+        if (error) throw error;
+      } else {
+        const { error } = await backend
+          .from("status_saves")
+          .insert({ status_id: flexId, user_id: user.id });
+        if (error && !/duplicate key/i.test(error.message ?? "")) throw error;
       }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Could not update saved clips",
+        description: error?.message ?? "Please try again.",
+        variant: "destructive",
+      });
     },
     onSuccess: (_data, { flexId, isSaved }) => {
       setSavedFlexIds((prev) => {
@@ -169,17 +218,22 @@ export default function Flex() {
   const commentMutation = useMutation({
     mutationFn: async ({ flexId, content }: { flexId: string; content: string }) => {
       if (!user) throw new Error("Sign in required");
-      try {
-        await backend
-          .from("status_comments")
-          .insert({ status_id: flexId, user_id: user.id, content });
-      } catch {
-        toast({ title: "Comment posted", description: "This feature is in beta." });
-      }
+      const { error } = await backend
+        .from("status_comments")
+        .insert({ status_id: flexId, user_id: user.id, content });
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["flex-comments", selectedFlexId] });
+      queryClient.invalidateQueries({ queryKey: ["flexes"] });
       setCommentText("");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Comment not posted",
+        description: error?.message ?? "Please try again.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -194,24 +248,40 @@ export default function Flex() {
       if (!user) throw new Error("Sign in required");
       if (user.id === targetUserId) throw new Error("Cannot follow yourself");
 
-      try {
-        if (isFollowing) {
-          await backend
-            .from("user_follows")
-            .delete()
-            .eq("follower_id", user.id)
-            .eq("following_id", targetUserId);
-        } else {
-          await backend
-            .from("user_follows")
-            .insert({ follower_id: user.id, following_id: targetUserId });
-        }
-      } catch {
-        toast({
-          title: isFollowing ? "Unfollowed" : "Following!",
-          description: "This feature is in beta.",
-        });
+      if (isFollowing) {
+        const { error } = await backend
+          .from("user_follows")
+          .delete()
+          .eq("follower_id", user.id)
+          .eq("following_id", targetUserId);
+        if (error) throw error;
+      } else {
+        const { error } = await backend
+          .from("user_follows")
+          .insert({ follower_id: user.id, following_id: targetUserId });
+        if (error && !/duplicate key/i.test(error.message ?? "")) throw error;
       }
+    },
+    onMutate: ({ targetUserId, isFollowing }) => {
+      setFollowingIds((prev) => {
+        const next = new Set(prev);
+        if (isFollowing) next.delete(targetUserId);
+        else next.add(targetUserId);
+        return next;
+      });
+    },
+    onError: (error: any, { targetUserId, isFollowing }) => {
+      setFollowingIds((prev) => {
+        const next = new Set(prev);
+        if (isFollowing) next.add(targetUserId);
+        else next.delete(targetUserId);
+        return next;
+      });
+      toast({
+        title: "Could not update follow",
+        description: error?.message ?? "Please try again.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -249,16 +319,24 @@ export default function Flex() {
       return;
     }
     const isLiked = likedFlexIds.has(flex.id);
+    setLikedFlexIds((prev) => {
+      const next = new Set(prev);
+      if (isLiked) next.delete(flex.id);
+      else next.add(flex.id);
+      return next;
+    });
     likeMutation.mutate(
       { flexId: flex.id, isLiked },
       {
-        onSuccess: () => {
+        onError: () => {
           setLikedFlexIds((prev) => {
             const next = new Set(prev);
-            if (isLiked) next.delete(flex.id);
-            else next.add(flex.id);
+            if (isLiked) next.add(flex.id);
+            else next.delete(flex.id);
             return next;
           });
+        },
+        onSuccess: () => {
           if (!isLiked) {
             void recommendationEventService.recordEvent({
               userId: user?.id ?? null,
@@ -288,28 +366,41 @@ export default function Flex() {
   };
 
   const handleShare = async (flexId: string) => {
-    const url = `${window.location.origin}/flex?id=${flexId}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: "Check out this flex on GameFlex", url });
-        return;
-      } catch (e) {
-        // User cancelled or failed, fall through to clipboard
-      }
-    }
+    const outcome = await shareContent({
+      target: "reel",
+      id: flexId,
+      title: "Check out this clip on GameFlex",
+    });
     void recommendationEventService.recordEvent({
       userId: user?.id ?? null,
       entityType: "flex",
       entityId: flexId,
       action: "share",
     });
-    try {
-      await navigator.clipboard.writeText(url);
-      toast({ title: "Link copied", description: "Share this Flex clip with your friends" });
-    } catch {
-      toast({ title: "Failed to copy link", variant: "destructive" });
+    if (outcome.method === "clipboard") {
+      toast({ title: "Link copied", description: "Share this clip with your friends" });
+    } else if (outcome.method === "manual") {
+      toast({ title: "Copy this link", description: outcome.url });
     }
   };
+
+  if (flexesLoading) {
+    return (
+      <div className="h-[100dvh] flex flex-col items-center justify-center bg-background gap-3">
+        <div className="h-12 w-12 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+        <p className="text-sm text-muted-foreground">Loading clips…</p>
+      </div>
+    );
+  }
+
+  if (flexesError) {
+    return (
+      <div className="h-[100dvh] flex flex-col items-center justify-center bg-background gap-4 px-6 text-center">
+        <p className="font-semibold">We couldn't load clips right now</p>
+        <Button onClick={() => void refetchFlexes()}>Try again</Button>
+      </div>
+    );
+  }
 
   if (flexes.length === 0) {
     return (
@@ -390,12 +481,16 @@ export default function Flex() {
                   {user && user.id !== flex.user_id && (
                     <Button
                       size="sm"
-                      className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold h-8 px-4 rounded-full"
+                      variant={followingIds.has(flex.user_id) ? "secondary" : "default"}
+                      className="font-semibold h-8 px-4 rounded-full"
                       onClick={() =>
-                        followMutation.mutate({ targetUserId: flex.user_id, isFollowing: false })
+                        followMutation.mutate({
+                          targetUserId: flex.user_id,
+                          isFollowing: followingIds.has(flex.user_id),
+                        })
                       }
                     >
-                      Follow
+                      {followingIds.has(flex.user_id) ? "Following" : "Follow"}
                     </Button>
                   )}
                 </div>
@@ -427,7 +522,7 @@ export default function Flex() {
                     />
                   </div>
                   <span className="text-xs font-semibold drop-shadow-lg">
-                    {(flex.likes_count ?? 0) + (likedFlexIds.has(flex.id) ? 1 : 0)}
+                    {flex.likes_count ?? 0}
                   </span>
                 </button>
 
