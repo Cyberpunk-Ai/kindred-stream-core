@@ -5,7 +5,7 @@ export function applyCountDelta(current: number | null | undefined, delta: numbe
 
 type CountClient = {
   from: (table: string) => any;
-  rpc?: (fn: string, args?: Record<string, unknown>) => any;
+  rpc?: any;
 };
 
 const VIEWER_KEY_STORAGE = "gf_viewer_key";
