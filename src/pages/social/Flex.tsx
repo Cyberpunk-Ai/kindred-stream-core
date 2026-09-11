@@ -305,6 +305,8 @@ export default function Flex() {
         entries.forEach((entry) => {
           const video = entry.target as HTMLVideoElement;
           if (entry.isIntersecting && entry.intersectionRatio >= 0.8) {
+            const idx = Array.from(videos).indexOf(video);
+            if (idx >= 0) setActiveIndex(idx);
             video.play().catch(() => {});
           } else {
             video.pause();
