@@ -32,9 +32,18 @@ import { getStorageUrl } from "@/lib/storage-url";
 const MAX_BYTES = 25 * 1024 * 1024;
 const MAX_VIDEO_SECONDS = 60;
 const MAX_TEXT_LENGTH = 180;
+/** How many photos one story sequence can hold. */
+const MAX_STORY_FRAMES = 10;
 
 type Mode = "media" | "text";
 type MediaKind = "image" | "video";
+
+interface StoryFrame {
+  id: string;
+  file: File;
+  preview: string;
+  kind: MediaKind;
+}
 
 /** Reads the duration of a video File without uploading it. */
 function readVideoDuration(file: File): Promise<number> {
