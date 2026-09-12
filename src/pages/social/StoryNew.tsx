@@ -371,7 +371,7 @@ export default function StoryNew() {
                 onDrop={(e) => {
                   e.preventDefault();
                   setDragging(false);
-                  void pickFile(e.dataTransfer.files[0]);
+                  void pickFiles(e.dataTransfer.files);
                 }}
               >
                 <div className="flex gap-3">
