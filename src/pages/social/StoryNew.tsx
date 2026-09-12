@@ -448,7 +448,7 @@ export default function StoryNew() {
             </div>
           </>
         ) : (
-          file && (
+          items.length > 0 && (
             <div className="w-full space-y-2">
               <textarea
                 value={caption}
