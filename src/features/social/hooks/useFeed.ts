@@ -14,8 +14,8 @@ import {
   type FeedPost,
 } from "@/services/social/FeedService";
 
-export const feedKey = (mode: FeedMode, viewerId?: string | null) =>
-  ["social", "feed", mode, viewerId ?? "anon"] as const;
+export const feedKey = (mode: FeedMode, viewerId?: string | null, focusPostId?: string | null) =>
+  ["social", "feed", mode, viewerId ?? "anon", focusPostId ?? "all"] as const;
 
 type FeedData = InfiniteData<FeedPage, string | null>;
 
