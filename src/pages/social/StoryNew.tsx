@@ -311,39 +311,93 @@ export default function StoryNew() {
                   )}
                 </div>
               </div>
-            ) : preview ? (
-              <div
-                className="relative w-full rounded-2xl overflow-hidden shadow-xl bg-black"
-                style={{ aspectRatio: "9/16" }}
-              >
-                {kind === "video" ? (
-                  <video
-                    src={preview}
-                    className="w-full h-full object-cover"
-                    autoPlay
-                    muted
-                    loop
-                    playsInline
-                  />
-                ) : (
-                  <img
-                    loading="lazy"
-                    decoding="async"
-                    src={preview}
-                    alt="Story preview"
-                    className="w-full h-full object-cover"
-                  />
-                )}
-                <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/30 pointer-events-none" />
-                <div className="absolute top-3 left-3 right-3 h-0.5 bg-white/30 rounded-full" />
-                <button
-                  type="button"
-                  onClick={clearMedia}
-                  aria-label="Remove selected media"
-                  className="absolute top-3 right-3 h-8 w-8 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+            ) : items.length > 0 ? (
+              <div className="w-full space-y-3">
+                <div
+                  className="relative w-full rounded-2xl overflow-hidden shadow-xl bg-black"
+                  style={{ aspectRatio: "9/16" }}
                 >
-                  <X className="h-4 w-4" />
-                </button>
+                  {activeItem.kind === "video" ? (
+                    <video
+                      src={activeItem.preview}
+                      className="w-full h-full object-cover"
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                    />
+                  ) : (
+                    <img
+                      loading="lazy"
+                      decoding="async"
+                      src={activeItem.preview}
+                      alt={`Story frame ${active + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/30 pointer-events-none" />
+                  {/* One progress segment per frame, like a real story */}
+                  <div className="absolute top-3 left-3 right-3 flex gap-1">
+                    {items.map((item, i) => (
+                      <span
+                        key={item.id}
+                        className={cn(
+                          "h-0.5 flex-1 rounded-full",
+                          i === active ? "bg-white" : "bg-white/30",
+                        )}
+                      />
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeItem(activeItem.id)}
+                    aria-label="Remove this frame"
+                    className="absolute top-6 right-3 h-8 w-8 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {items.map((item, i) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setActive(i)}
+                      aria-label={`Show frame ${i + 1}`}
+                      className={cn(
+                        "relative h-16 w-12 shrink-0 overflow-hidden rounded-lg border-2 transition-all",
+                        i === active ? "border-primary" : "border-transparent opacity-70",
+                      )}
+                    >
+                      {item.kind === "video" ? (
+                        <video src={item.preview} muted className="h-full w-full object-cover" />
+                      ) : (
+                        <img
+                          src={item.preview}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                      )}
+                    </button>
+                  ))}
+                  {items.length < MAX_STORY_FRAMES && items[0]?.kind !== "video" && (
+                    <button
+                      type="button"
+                      onClick={() => inputRef.current?.click()}
+                      aria-label="Add more photos"
+                      className="h-16 w-12 shrink-0 rounded-lg border-2 border-dashed border-border/60 text-muted-foreground hover:border-primary/50"
+                    >
+                      +
+                    </button>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {items.length > 1
+                    ? `${items.length} frames will post as one story sequence.`
+                    : "Add more photos to post a multi-photo story."}
+                </p>
               </div>
             ) : (
               <div
