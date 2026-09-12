@@ -299,7 +299,8 @@ export default function StoryNew() {
 
   if (authLoading || !user) return null;
 
-  const canPublish = mode === "text" ? text.trim().length > 0 : !!file;
+  const canPublish = mode === "text" ? text.trim().length > 0 : items.length > 0;
+  const activeItem = items[Math.min(active, items.length - 1)];
 
   return (
     <div className="min-h-[100dvh] bg-background flex flex-col">
