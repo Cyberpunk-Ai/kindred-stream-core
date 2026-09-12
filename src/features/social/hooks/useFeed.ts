@@ -23,14 +23,15 @@ type FeedData = InfiniteData<FeedPage, string | null>;
  * Infinite, cursor-paginated feed with de-duplication, background caching and
  * optimistic interactions that roll back safely on failure.
  */
-export function useFeed(mode: FeedMode, viewerId?: string | null) {
+export function useFeed(mode: FeedMode, viewerId?: string | null, focusPostId?: string | null) {
   const qc = useQueryClient();
-  const key = feedKey(mode, viewerId);
+  const key = feedKey(mode, viewerId, focusPostId);
 
   const query = useInfiniteQuery<FeedPage, Error, FeedData, typeof key, string | null>({
     queryKey: key,
     initialPageParam: null,
-    queryFn: ({ pageParam }) => feedService.getPage({ mode, viewerId, cursor: pageParam ?? null }),
+    queryFn: ({ pageParam }) =>
+      feedService.getPage({ mode, viewerId, cursor: pageParam ?? null, focusPostId }),
     getNextPageParam: (last) =>
       last.nextCursor
         ? cursorOf({ created_at: last.nextCursor.createdAt, id: last.nextCursor.id })
