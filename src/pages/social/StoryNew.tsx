@@ -98,22 +98,35 @@ export default function StoryNew() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user]);
 
-  // Revoke the last object URL whenever it is replaced or the page unmounts.
-  useEffect(() => {
-    previewUrlRef.current = preview;
-    return () => {
-      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-    };
-  }, [preview]);
+  // Keep the live preview URLs so they can all be revoked on unmount.
+  const framesRef = useRef<StoryFrame[]>([]);
+  framesRef.current = items;
+  useEffect(
+    () => () => {
+      framesRef.current.forEach((frame) => URL.revokeObjectURL(frame.preview));
+    },
+    [],
+  );
 
   const clearMedia = useCallback(() => {
-    setFile(null);
-    setPreview((old) => {
-      if (old) URL.revokeObjectURL(old);
-      return null;
+    setItems((prev) => {
+      prev.forEach((frame) => URL.revokeObjectURL(frame.preview));
+      return [];
     });
+    setActive(0);
     if (inputRef.current) inputRef.current.value = "";
   }, []);
+
+  const removeItem = useCallback((id: string) => {
+    setItems((prev) => {
+      const target = prev.find((frame) => frame.id === id);
+      if (target) URL.revokeObjectURL(target.preview);
+      return prev.filter((frame) => frame.id !== id);
+    });
+    setActive(0);
+    if (inputRef.current) inputRef.current.value = "";
+  }, []);
+
 
   const pickFile = useCallback(
     async (f?: File | null) => {
