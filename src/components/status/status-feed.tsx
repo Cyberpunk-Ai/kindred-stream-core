@@ -300,7 +300,7 @@ export function StatusFeed({
   }, [user?.id]);
 
   // ── cursor-paginated feed (keyset pagination + react-query caching) ──
-  const feed = useFeed(mode, user?.id ?? null);
+  const feed = useFeed(mode, user?.id ?? null, focusPostId ?? null);
   const {
     posts,
     isLoading,
