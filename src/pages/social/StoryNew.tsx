@@ -80,9 +80,8 @@ export default function StoryNew() {
   const previewUrlRef = useRef<string | null>(null);
 
   const [mode, setMode] = useState<Mode>("media");
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [kind, setKind] = useState<MediaKind>("image");
+  const [items, setItems] = useState<StoryFrame[]>([]);
+  const [active, setActive] = useState(0);
   const [caption, setCaption] = useState("");
   const [text, setText] = useState("");
   const [gradientId, setGradientId] = useState(DEFAULT_STORY_GRADIENT.id);
