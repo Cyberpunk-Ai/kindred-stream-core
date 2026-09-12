@@ -165,12 +165,27 @@ export class FeedService {
     }));
   }
 
+  /** A single post, hydrated exactly like a feed item (used for shared links). */
+  async getOne(postId: string, viewerId?: string | null): Promise<FeedPost | null> {
+    const { data, error } = await backend
+      .from("user_statuses")
+      .select(SELECT_COLUMNS)
+      .eq("id", postId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    const [post] = await this.hydrate([data as Record<string, any>], viewerId);
+    return post ?? null;
+  }
+
   /** One keyset-paginated page of the feed. */
   async getPage(options: {
     mode: FeedMode;
     viewerId?: string | null;
     cursor?: string | null;
     limit?: number;
+    /** Pins this post at the top of the first page (shared/deep links). */
+    focusPostId?: string | null;
   }): Promise<FeedPage> {
     const limit = options.limit ?? FEED_PAGE_SIZE;
     const cursor = parseCursor(options.cursor);
