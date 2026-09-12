@@ -242,25 +242,39 @@ export default function StoryNew() {
         return;
       }
 
-      if (!file) throw new Error("Pick a photo or a short video first.");
+      if (!items.length) throw new Error("Pick a photo or a short video first.");
 
-      // Storage RLS scopes writes to a folder named after the owner's user id,
-      // so the user id MUST be the first path segment.
-      const path = `${user.id}/story-${Date.now()}.${fileExtension(file)}`;
-      const { error: upErr } = await backend.storage
-        .from(STORAGE_BUCKETS.STATUS_MEDIA)
-        .upload(path, file, { cacheControl: "3600", contentType: file.type, upsert: false });
-      if (upErr) throw upErr;
+      const expiresAt = calculateStoryExpiresAt();
+      const rows: Record<string, unknown>[] = [];
 
-      const publicUrl = await getStorageUrl(STORAGE_BUCKETS.STATUS_MEDIA, path);
+      // Each photo becomes its own story frame, so viewers tap through them
+      // exactly like a multi-photo story elsewhere.
+      for (let i = 0; i < items.length; i++) {
+        const frame = items[i];
+        // Storage RLS scopes writes to a folder named after the owner's user id,
+        // so the user id MUST be the first path segment.
+        const path = `${user.id}/story-${Date.now()}-${i}.${fileExtension(frame.file)}`;
+        const { error: upErr } = await backend.storage
+          .from(STORAGE_BUCKETS.STATUS_MEDIA)
+          .upload(path, frame.file, {
+            cacheControl: "3600",
+            contentType: frame.file.type,
+            upsert: false,
+          });
+        if (upErr) throw upErr;
 
-      const { error } = await backend.from("user_statuses").insert({
-        user_id: user.id,
-        content: caption.trim() || null,
-        media_url: publicUrl,
-        media_type: kind,
-        expires_at: calculateStoryExpiresAt(),
-      });
+        const url = await getStorageUrl(STORAGE_BUCKETS.STATUS_MEDIA, path);
+        rows.push({
+          user_id: user.id,
+          content: i === 0 ? caption.trim() || null : null,
+          media_url: url,
+          media_urls: [url],
+          media_type: frame.kind,
+          expires_at: expiresAt,
+        });
+      }
+
+      const { error } = await backend.from("user_statuses").insert(rows);
       if (error) throw error;
     },
     onSuccess: () => {
