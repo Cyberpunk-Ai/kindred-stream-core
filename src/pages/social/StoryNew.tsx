@@ -357,8 +357,12 @@ export default function StoryNew() {
           ref={inputRef}
           type="file"
           accept="image/*,video/*"
+          multiple
           className="hidden"
-          onChange={(e) => void pickFile(e.target.files?.[0])}
+          onChange={(e) => {
+            void pickFiles(e.target.files);
+            e.target.value = "";
+          }}
         />
 
         <AnimatePresence mode="wait">
