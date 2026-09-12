@@ -245,7 +245,14 @@ export default function StoryNew() {
       if (!items.length) throw new Error("Pick a photo or a short video first.");
 
       const expiresAt = calculateStoryExpiresAt();
-      const rows: Record<string, unknown>[] = [];
+      const rows: {
+        user_id: string;
+        content: string | null;
+        media_url: string;
+        media_urls: string[];
+        media_type: MediaKind;
+        expires_at: string;
+      }[] = [];
 
       // Each photo becomes its own story frame, so viewers tap through them
       // exactly like a multi-photo story elsewhere.
