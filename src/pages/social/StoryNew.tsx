@@ -32,9 +32,18 @@ import { getStorageUrl } from "@/lib/storage-url";
 const MAX_BYTES = 25 * 1024 * 1024;
 const MAX_VIDEO_SECONDS = 60;
 const MAX_TEXT_LENGTH = 180;
+/** How many photos one story sequence can hold. */
+const MAX_STORY_FRAMES = 10;
 
 type Mode = "media" | "text";
 type MediaKind = "image" | "video";
+
+interface StoryFrame {
+  id: string;
+  file: File;
+  preview: string;
+  kind: MediaKind;
+}
 
 /** Reads the duration of a video File without uploading it. */
 function readVideoDuration(file: File): Promise<number> {
@@ -71,9 +80,8 @@ export default function StoryNew() {
   const previewUrlRef = useRef<string | null>(null);
 
   const [mode, setMode] = useState<Mode>("media");
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [kind, setKind] = useState<MediaKind>("image");
+  const [items, setItems] = useState<StoryFrame[]>([]);
+  const [active, setActive] = useState(0);
   const [caption, setCaption] = useState("");
   const [text, setText] = useState("");
   const [gradientId, setGradientId] = useState(DEFAULT_STORY_GRADIENT.id);
@@ -90,27 +98,39 @@ export default function StoryNew() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user]);
 
-  // Revoke the last object URL whenever it is replaced or the page unmounts.
-  useEffect(() => {
-    previewUrlRef.current = preview;
-    return () => {
-      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-    };
-  }, [preview]);
+  // Keep the live preview URLs so they can all be revoked on unmount.
+  const framesRef = useRef<StoryFrame[]>([]);
+  framesRef.current = items;
+  useEffect(
+    () => () => {
+      framesRef.current.forEach((frame) => URL.revokeObjectURL(frame.preview));
+    },
+    [],
+  );
 
   const clearMedia = useCallback(() => {
-    setFile(null);
-    setPreview((old) => {
-      if (old) URL.revokeObjectURL(old);
-      return null;
+    setItems((prev) => {
+      prev.forEach((frame) => URL.revokeObjectURL(frame.preview));
+      return [];
     });
+    setActive(0);
     if (inputRef.current) inputRef.current.value = "";
   }, []);
 
-  const pickFile = useCallback(
-    async (f?: File | null) => {
-      if (!f) return;
+  const removeItem = useCallback((id: string) => {
+    setItems((prev) => {
+      const target = prev.find((frame) => frame.id === id);
+      if (target) URL.revokeObjectURL(target.preview);
+      return prev.filter((frame) => frame.id !== id);
+    });
+    setActive(0);
+    if (inputRef.current) inputRef.current.value = "";
+  }, []);
 
+
+  /** Validates one file and returns a frame, or null when it is rejected. */
+  const validateFile = useCallback(
+    async (f: File): Promise<StoryFrame | null> => {
       const isImage = f.type.startsWith("image/");
       const isVideo = f.type.startsWith("video/");
       if (!isImage && !isVideo) {
@@ -119,7 +139,7 @@ export default function StoryNew() {
           description: "Pick an image or a short video.",
           variant: "destructive",
         });
-        return;
+        return null;
       }
       if (f.size > MAX_BYTES) {
         toast({
@@ -127,7 +147,7 @@ export default function StoryNew() {
           description: "Stories are capped at 25 MB.",
           variant: "destructive",
         });
-        return;
+        return null;
       }
       if (isVideo) {
         try {
@@ -138,7 +158,7 @@ export default function StoryNew() {
               description: `Story clips must be ${MAX_VIDEO_SECONDS} seconds or shorter.`,
               variant: "destructive",
             });
-            return;
+            return null;
           }
         } catch (err) {
           toast({
@@ -146,18 +166,60 @@ export default function StoryNew() {
             description: (err as Error).message,
             variant: "destructive",
           });
-          return;
+          return null;
         }
       }
 
-      setFile(f);
-      setKind(isVideo ? "video" : "image");
-      setPreview((old) => {
-        if (old) URL.revokeObjectURL(old);
-        return URL.createObjectURL(f);
-      });
+      return {
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        file: f,
+        preview: URL.createObjectURL(f),
+        kind: isVideo ? "video" : "image",
+      };
     },
     [toast],
+  );
+
+  /** Accepts a multi-select: several photos, or a single video clip. */
+  const pickFiles = useCallback(
+    async (list?: FileList | File[] | null) => {
+      const incoming = Array.from(list ?? []);
+      if (!incoming.length) return;
+
+      const frames: StoryFrame[] = [];
+      for (const f of incoming) {
+        const frame = await validateFile(f);
+        if (frame) frames.push(frame);
+      }
+      if (!frames.length) return;
+
+      // A clip is always its own story, so a video replaces any photo queue.
+      if (frames.some((frame) => frame.kind === "video")) {
+        const clip = frames.find((frame) => frame.kind === "video")!;
+        frames.filter((frame) => frame !== clip).forEach((f) => URL.revokeObjectURL(f.preview));
+        setItems((prev) => {
+          prev.forEach((f) => URL.revokeObjectURL(f.preview));
+          return [clip];
+        });
+        setActive(0);
+        return;
+      }
+
+      setItems((prev) => {
+        const base = prev.some((frame) => frame.kind === "video") ? [] : prev;
+        if (base !== prev) prev.forEach((f) => URL.revokeObjectURL(f.preview));
+        const room = Math.max(0, MAX_STORY_FRAMES - base.length);
+        if (frames.length > room) {
+          toast({
+            title: `Up to ${MAX_STORY_FRAMES} photos`,
+            description: "The extra photos were skipped.",
+          });
+          frames.slice(room).forEach((f) => URL.revokeObjectURL(f.preview));
+        }
+        return [...base, ...frames.slice(0, room)];
+      });
+    },
+    [toast, validateFile],
   );
 
   const publish = useMutation({
@@ -180,25 +242,46 @@ export default function StoryNew() {
         return;
       }
 
-      if (!file) throw new Error("Pick a photo or a short video first.");
+      if (!items.length) throw new Error("Pick a photo or a short video first.");
 
-      // Storage RLS scopes writes to a folder named after the owner's user id,
-      // so the user id MUST be the first path segment.
-      const path = `${user.id}/story-${Date.now()}.${fileExtension(file)}`;
-      const { error: upErr } = await backend.storage
-        .from(STORAGE_BUCKETS.STATUS_MEDIA)
-        .upload(path, file, { cacheControl: "3600", contentType: file.type, upsert: false });
-      if (upErr) throw upErr;
+      const expiresAt = calculateStoryExpiresAt();
+      const rows: {
+        user_id: string;
+        content: string | null;
+        media_url: string;
+        media_urls: string[];
+        media_type: MediaKind;
+        expires_at: string;
+      }[] = [];
 
-      const publicUrl = await getStorageUrl(STORAGE_BUCKETS.STATUS_MEDIA, path);
+      // Each photo becomes its own story frame, so viewers tap through them
+      // exactly like a multi-photo story elsewhere.
+      for (let i = 0; i < items.length; i++) {
+        const frame = items[i];
+        // Storage RLS scopes writes to a folder named after the owner's user id,
+        // so the user id MUST be the first path segment.
+        const path = `${user.id}/story-${Date.now()}-${i}.${fileExtension(frame.file)}`;
+        const { error: upErr } = await backend.storage
+          .from(STORAGE_BUCKETS.STATUS_MEDIA)
+          .upload(path, frame.file, {
+            cacheControl: "3600",
+            contentType: frame.file.type,
+            upsert: false,
+          });
+        if (upErr) throw upErr;
 
-      const { error } = await backend.from("user_statuses").insert({
-        user_id: user.id,
-        content: caption.trim() || null,
-        media_url: publicUrl,
-        media_type: kind,
-        expires_at: calculateStoryExpiresAt(),
-      });
+        const url = await getStorageUrl(STORAGE_BUCKETS.STATUS_MEDIA, path);
+        rows.push({
+          user_id: user.id,
+          content: i === 0 ? caption.trim() || null : null,
+          media_url: url,
+          media_urls: [url],
+          media_type: frame.kind,
+          expires_at: expiresAt,
+        });
+      }
+
+      const { error } = await backend.from("user_statuses").insert(rows);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -216,7 +299,8 @@ export default function StoryNew() {
 
   if (authLoading || !user) return null;
 
-  const canPublish = mode === "text" ? text.trim().length > 0 : !!file;
+  const canPublish = mode === "text" ? text.trim().length > 0 : items.length > 0;
+  const activeItem = items[Math.min(active, items.length - 1)];
 
   return (
     <div className="min-h-[100dvh] bg-background flex flex-col">
@@ -273,13 +357,17 @@ export default function StoryNew() {
           ref={inputRef}
           type="file"
           accept="image/*,video/*"
+          multiple
           className="hidden"
-          onChange={(e) => void pickFile(e.target.files?.[0])}
+          onChange={(e) => {
+            void pickFiles(e.target.files);
+            e.target.value = "";
+          }}
         />
 
         <AnimatePresence mode="wait">
           <motion.div
-            key={mode + (preview ? "prev" : "empty")}
+            key={mode + (items.length ? "prev" : "empty")}
             initial={{ opacity: 0, scale: 0.97 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.97 }}
@@ -311,39 +399,93 @@ export default function StoryNew() {
                   )}
                 </div>
               </div>
-            ) : preview ? (
-              <div
-                className="relative w-full rounded-2xl overflow-hidden shadow-xl bg-black"
-                style={{ aspectRatio: "9/16" }}
-              >
-                {kind === "video" ? (
-                  <video
-                    src={preview}
-                    className="w-full h-full object-cover"
-                    autoPlay
-                    muted
-                    loop
-                    playsInline
-                  />
-                ) : (
-                  <img
-                    loading="lazy"
-                    decoding="async"
-                    src={preview}
-                    alt="Story preview"
-                    className="w-full h-full object-cover"
-                  />
-                )}
-                <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/30 pointer-events-none" />
-                <div className="absolute top-3 left-3 right-3 h-0.5 bg-white/30 rounded-full" />
-                <button
-                  type="button"
-                  onClick={clearMedia}
-                  aria-label="Remove selected media"
-                  className="absolute top-3 right-3 h-8 w-8 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+            ) : items.length > 0 ? (
+              <div className="w-full space-y-3">
+                <div
+                  className="relative w-full rounded-2xl overflow-hidden shadow-xl bg-black"
+                  style={{ aspectRatio: "9/16" }}
                 >
-                  <X className="h-4 w-4" />
-                </button>
+                  {activeItem.kind === "video" ? (
+                    <video
+                      src={activeItem.preview}
+                      className="w-full h-full object-cover"
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                    />
+                  ) : (
+                    <img
+                      loading="lazy"
+                      decoding="async"
+                      src={activeItem.preview}
+                      alt={`Story frame ${active + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/30 pointer-events-none" />
+                  {/* One progress segment per frame, like a real story */}
+                  <div className="absolute top-3 left-3 right-3 flex gap-1">
+                    {items.map((item, i) => (
+                      <span
+                        key={item.id}
+                        className={cn(
+                          "h-0.5 flex-1 rounded-full",
+                          i === active ? "bg-white" : "bg-white/30",
+                        )}
+                      />
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeItem(activeItem.id)}
+                    aria-label="Remove this frame"
+                    className="absolute top-6 right-3 h-8 w-8 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {items.map((item, i) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setActive(i)}
+                      aria-label={`Show frame ${i + 1}`}
+                      className={cn(
+                        "relative h-16 w-12 shrink-0 overflow-hidden rounded-lg border-2 transition-all",
+                        i === active ? "border-primary" : "border-transparent opacity-70",
+                      )}
+                    >
+                      {item.kind === "video" ? (
+                        <video src={item.preview} muted className="h-full w-full object-cover" />
+                      ) : (
+                        <img
+                          src={item.preview}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                      )}
+                    </button>
+                  ))}
+                  {items.length < MAX_STORY_FRAMES && items[0]?.kind !== "video" && (
+                    <button
+                      type="button"
+                      onClick={() => inputRef.current?.click()}
+                      aria-label="Add more photos"
+                      className="h-16 w-12 shrink-0 rounded-lg border-2 border-dashed border-border/60 text-muted-foreground hover:border-primary/50"
+                    >
+                      +
+                    </button>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {items.length > 1
+                    ? `${items.length} frames will post as one story sequence.`
+                    : "Add more photos to post a multi-photo story."}
+                </p>
               </div>
             ) : (
               <div
@@ -371,7 +513,7 @@ export default function StoryNew() {
                 onDrop={(e) => {
                   e.preventDefault();
                   setDragging(false);
-                  void pickFile(e.dataTransfer.files[0]);
+                  void pickFiles(e.dataTransfer.files);
                 }}
               >
                 <div className="flex gap-3">
@@ -448,7 +590,7 @@ export default function StoryNew() {
             </div>
           </>
         ) : (
-          file && (
+          items.length > 0 && (
             <div className="w-full space-y-2">
               <textarea
                 value={caption}

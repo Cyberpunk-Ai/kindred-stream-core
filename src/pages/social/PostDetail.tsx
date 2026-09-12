@@ -1,225 +1,37 @@
-import { useEffect, useState } from "react";
-import { useParams, Link } from "@/lib/router-compat";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { backend } from "@/backend";
+import { Link, useParams } from "@/lib/router-compat";
+import { ArrowLeft } from "lucide-react";
 import { SocialLayout } from "@/components/social/social-nav";
-import { MediaGallery } from "@/components/social/media-gallery";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { StatusComments } from "@/components/social/status-comments";
-import { Heart, Eye, ArrowLeft, MessageCircle } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import { useAuth } from "@/lib/auth-context";
-import { useToast } from "@/hooks/use-toast";
-import { recordStatusView } from "@/lib/social-analytics";
-import { cn } from "@/lib/utils";
+import { StatusFeed } from "@/components/status/status-feed";
+import { SuggestionsRail } from "@/components/social/suggestions-rail";
 
+/**
+ * A shared post link opens the real feed, with the linked post pinned to the
+ * top. Every card behaviour (gradient text cards, likes, comments, galleries,
+ * saves, sharing) is the feed's own, so there is no second half-finished post
+ * renderer to keep in sync.
+ */
 export default function PostDetail() {
-  const { id } = useParams();
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
-  const { data: post, isLoading } = useQuery({
-    queryKey: ["post", id],
-    queryFn: async () => {
-      if (!id) return null;
-      const { data } = await backend.from("user_statuses").select("*").eq("id", id).maybeSingle();
-      if (!data) return null;
-
-      const [{ data: profile }, { data: userLike }] = await Promise.all([
-        backend
-          .from("profiles")
-          .select("user_id, username, avatar_url")
-          .eq("user_id", data.user_id)
-          .maybeSingle(),
-        user
-          ? backend
-              .from("status_likes")
-              .select("id")
-              .eq("status_id", id)
-              .eq("user_id", user.id)
-              .maybeSingle()
-          : Promise.resolve({ data: null }),
-      ]);
-
-      return { ...data, profile, isLiked: !!userLike };
-    },
-  });
-
-  // Track view count on load
-  useEffect(() => {
-    if (id) {
-      void recordStatusView(backend, id, user?.id).then(() => {
-        queryClient.invalidateQueries({ queryKey: ["post", id] });
-      });
-    }
-  }, [id, queryClient, user?.id]);
-
-  // Realtime subscription for this post's likes/comments/views updates
-  useEffect(() => {
-    if (!id) return;
-    const channel = backend
-      .channel(`post-detail-${id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "user_statuses", filter: `id=eq.${id}` },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["post", id] });
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "status_likes", filter: `status_id=eq.${id}` },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["post", id] });
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "status_comments", filter: `status_id=eq.${id}` },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["post", id] });
-        },
-      )
-      .subscribe();
-
-    return () => {
-      backend.removeChannel(channel);
-    };
-  }, [id, queryClient]);
-
-  const likeMutation = useMutation({
-    mutationFn: async () => {
-      if (!user) throw new Error("Sign in to like posts");
-      if (!id) throw new Error("Missing post id");
-      if (post?.isLiked) {
-        const { error } = await backend
-          .from("status_likes")
-          .delete()
-          .eq("status_id", id)
-          .eq("user_id", user.id);
-        if (error) throw error;
-      } else {
-        const { error } = await backend
-          .from("status_likes")
-          .insert({ status_id: id, user_id: user.id });
-        if (error && !/duplicate key/i.test(error.message ?? "")) throw error;
-      }
-    },
-    onMutate: async () => {
-      await queryClient.cancelQueries({ queryKey: ["post", id] });
-      const prev = queryClient.getQueryData(["post", id]);
-      queryClient.setQueryData(["post", id], (old: any) =>
-        old
-          ? {
-              ...old,
-              isLiked: !old.isLiked,
-              likes_count: (old.likes_count ?? 0) + (old.isLiked ? -1 : 1),
-            }
-          : old,
-      );
-      return { prev };
-    },
-    onError: (err: any, _vars, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(["post", id], ctx.prev);
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["post", id] });
-      queryClient.invalidateQueries({ queryKey: ["user-statuses"] });
-    },
-  });
-
-  if (isLoading)
-    return (
-      <SocialLayout title="Post">
-        <p className="text-center py-16 text-muted-foreground">Loading...</p>
-      </SocialLayout>
-    );
-  if (!post)
-    return (
-      <SocialLayout title="Post not found">
-        <Link to="/social" className="text-primary text-sm flex items-center gap-2">
-          <ArrowLeft className="h-4 w-4" />
-          Back to feed
-        </Link>
-      </SocialLayout>
-    );
+  const params = useParams<{ id: string }>();
+  const id = params?.id;
 
   return (
-    <SocialLayout>
-      <Link
-        to="/social"
-        className="text-sm text-muted-foreground flex items-center gap-1 mb-4 hover:text-primary"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back
-      </Link>
-      <article className="rounded-xl border border-border/50 bg-card overflow-hidden shadow-sm">
-        <div className="p-4 flex items-center gap-3">
-          <Link to={`/player/${post.user_id}`}>
-            <Avatar className="h-11 w-11">
-              <AvatarImage src={post.profile?.avatar_url ?? undefined} />
-              <AvatarFallback>{post.profile?.username?.[0]?.toUpperCase()}</AvatarFallback>
-            </Avatar>
-          </Link>
-          <div>
-            <Link to={`/player/${post.user_id}`} className="font-medium hover:text-primary">
-              {post.profile?.username ?? "Anonymous"}
-            </Link>
-            <div className="text-xs text-muted-foreground">
-              {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
-            </div>
-          </div>
-        </div>
-        {post.content && (
-          <p className="px-4 pb-3 whitespace-pre-wrap text-sm leading-relaxed">{post.content}</p>
-        )}
-        {post.media_url && (
-          <div className="bg-black">
-            {post.media_type === "video" ? (
-              <video src={post.media_url} controls className="w-full max-h-[600px]" />
-            ) : Array.isArray((post as any).media_urls) && (post as any).media_urls.length > 1 ? (
-              <MediaGallery urls={(post as any).media_urls as string[]} />
-            ) : (
-              <img
-                loading="lazy"
-                decoding="async"
-                src={post.media_url}
-                alt="Post media"
-                className="w-full max-h-[600px] object-contain"
-              />
-            )}
-          </div>
-        )}
-        <div className="p-4 flex items-center gap-6 text-sm border-t border-border/50">
-          <button
-            onClick={() =>
-              user ? likeMutation.mutate() : toast({ title: "Sign in to like posts" })
-            }
-            className={cn(
-              "flex items-center gap-1.5 transition-colors cursor-pointer",
-              post.isLiked
-                ? "text-red-500 font-semibold"
-                : "text-muted-foreground hover:text-foreground",
-            )}
+    <SocialLayout rightRail={<SuggestionsRail />}>
+      <div className="max-w-[470px] mx-auto w-full">
+        <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-border/40 bg-background/90 px-4 py-3 backdrop-blur-xl">
+          <Link
+            to="/social"
+            aria-label="Back to feed"
+            className="text-muted-foreground transition-colors hover:text-foreground"
           >
-            <Heart className={cn("h-5 w-5", post.isLiked && "fill-red-500 text-red-500")} />
-            <span>{post.likes_count ?? 0}</span>
-          </button>
-          <span className="flex items-center gap-1.5 text-muted-foreground">
-            <MessageCircle className="h-5 w-5" />
-            <span>{post.comments_count ?? 0}</span>
-          </span>
-          <span className="flex items-center gap-1.5 text-muted-foreground ml-auto text-xs">
-            <Eye className="h-4 w-4" />
-            <span>{post.views_count ?? 0} views</span>
-          </span>
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <h1 className="text-base font-bold">Post</h1>
         </div>
-        <div className="px-4 pb-4">
-          <StatusComments statusId={post.id} commentsCount={post.comments_count ?? 0} />
+
+        <div className="pb-20 md:pb-8">
+          <StatusFeed focusPostId={id} />
         </div>
-      </article>
+      </div>
     </SocialLayout>
   );
 }

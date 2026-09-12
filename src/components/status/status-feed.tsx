@@ -268,7 +268,12 @@ function PostMenu({
 
 export function StatusFeed({
   mode = "foryou",
-}: { mode?: "foryou" | "trending" | "following" } = {}) {
+  focusPostId,
+}: {
+  mode?: "foryou" | "trending" | "following";
+  /** Pins a shared/deep-linked post at the top of the feed. */
+  focusPostId?: string;
+} = {}) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -295,7 +300,7 @@ export function StatusFeed({
   }, [user?.id]);
 
   // ── cursor-paginated feed (keyset pagination + react-query caching) ──
-  const feed = useFeed(mode, user?.id ?? null);
+  const feed = useFeed(mode, user?.id ?? null, focusPostId ?? null);
   const {
     posts,
     isLoading,
