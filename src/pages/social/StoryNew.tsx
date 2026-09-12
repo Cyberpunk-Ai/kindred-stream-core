@@ -128,10 +128,9 @@ export default function StoryNew() {
   }, []);
 
 
-  const pickFile = useCallback(
-    async (f?: File | null) => {
-      if (!f) return;
-
+  /** Validates one file and returns a frame, or null when it is rejected. */
+  const validateFile = useCallback(
+    async (f: File): Promise<StoryFrame | null> => {
       const isImage = f.type.startsWith("image/");
       const isVideo = f.type.startsWith("video/");
       if (!isImage && !isVideo) {
@@ -140,7 +139,7 @@ export default function StoryNew() {
           description: "Pick an image or a short video.",
           variant: "destructive",
         });
-        return;
+        return null;
       }
       if (f.size > MAX_BYTES) {
         toast({
@@ -148,7 +147,7 @@ export default function StoryNew() {
           description: "Stories are capped at 25 MB.",
           variant: "destructive",
         });
-        return;
+        return null;
       }
       if (isVideo) {
         try {
@@ -159,7 +158,7 @@ export default function StoryNew() {
               description: `Story clips must be ${MAX_VIDEO_SECONDS} seconds or shorter.`,
               variant: "destructive",
             });
-            return;
+            return null;
           }
         } catch (err) {
           toast({
@@ -167,18 +166,60 @@ export default function StoryNew() {
             description: (err as Error).message,
             variant: "destructive",
           });
-          return;
+          return null;
         }
       }
 
-      setFile(f);
-      setKind(isVideo ? "video" : "image");
-      setPreview((old) => {
-        if (old) URL.revokeObjectURL(old);
-        return URL.createObjectURL(f);
-      });
+      return {
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        file: f,
+        preview: URL.createObjectURL(f),
+        kind: isVideo ? "video" : "image",
+      };
     },
     [toast],
+  );
+
+  /** Accepts a multi-select: several photos, or a single video clip. */
+  const pickFiles = useCallback(
+    async (list?: FileList | File[] | null) => {
+      const incoming = Array.from(list ?? []);
+      if (!incoming.length) return;
+
+      const frames: StoryFrame[] = [];
+      for (const f of incoming) {
+        const frame = await validateFile(f);
+        if (frame) frames.push(frame);
+      }
+      if (!frames.length) return;
+
+      // A clip is always its own story, so a video replaces any photo queue.
+      if (frames.some((frame) => frame.kind === "video")) {
+        const clip = frames.find((frame) => frame.kind === "video")!;
+        frames.filter((frame) => frame !== clip).forEach((f) => URL.revokeObjectURL(f.preview));
+        setItems((prev) => {
+          prev.forEach((f) => URL.revokeObjectURL(f.preview));
+          return [clip];
+        });
+        setActive(0);
+        return;
+      }
+
+      setItems((prev) => {
+        const base = prev.some((frame) => frame.kind === "video") ? [] : prev;
+        if (base !== prev) prev.forEach((f) => URL.revokeObjectURL(f.preview));
+        const room = Math.max(0, MAX_STORY_FRAMES - base.length);
+        if (frames.length > room) {
+          toast({
+            title: `Up to ${MAX_STORY_FRAMES} photos`,
+            description: "The extra photos were skipped.",
+          });
+          frames.slice(room).forEach((f) => URL.revokeObjectURL(f.preview));
+        }
+        return [...base, ...frames.slice(0, room)];
+      });
+    },
+    [toast, validateFile],
   );
 
   const publish = useMutation({
