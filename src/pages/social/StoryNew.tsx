@@ -367,7 +367,7 @@ export default function StoryNew() {
 
         <AnimatePresence mode="wait">
           <motion.div
-            key={mode + (preview ? "prev" : "empty")}
+            key={mode + (items.length ? "prev" : "empty")}
             initial={{ opacity: 0, scale: 0.97 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.97 }}
