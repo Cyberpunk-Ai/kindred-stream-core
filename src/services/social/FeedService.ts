@@ -235,6 +235,17 @@ export class FeedService {
       );
     }
 
+    // Shared links: pin the requested post at the head of the first page so it
+    // renders as a normal feed card with all of its interactions intact.
+    if (options.focusPostId && !cursor) {
+      const focus = await this.getOne(options.focusPostId, options.viewerId).catch(() => null);
+      if (focus) {
+        const rest = items.filter((item) => item.id !== focus.id);
+        items.length = 0;
+        items.push(focus, ...rest);
+      }
+    }
+
     const last = pageRows[pageRows.length - 1];
     return {
       items,
