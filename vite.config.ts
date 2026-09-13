@@ -1,78 +1,122 @@
-/**
- * Build configuration.
- *
- * The project builds in two environments and must not depend on either one:
- *
- *  1. Inside the Lovable sandbox, `@lovable.dev/vite-tanstack-config` is used
- *     (it wires TanStack Start, React, Tailwind, tsconfig paths, nitro, env
- *     injection and the sandbox dev-server settings).
- *  2. Anywhere else (Dokploy, Docker, a VPS, CI) the same plugin set is
- *     assembled here directly, so a plain `bun install && bun run build`
- *     produces a self-contained Node server with no vendor-specific package.
- *
- * The server target is environment driven: SERVER_PRESET (or NITRO_PRESET)
- * selects the nitro preset and defaults to `node-server` for self-hosting.
- */
-import type { UserConfig } from "vite";
+import { fileURLToPath } from "node:url";
 
-const SELF_HOST_PRESET =
-  process.env["SERVER_PRESET"] ?? process.env["NITRO_PRESET"] ?? "node-server";
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import tailwindcss from "@tailwindcss/vite";
+import viteReact from "@vitejs/plugin-react";
+import { nitro } from "nitro/vite";
+import { defineConfig, loadEnv } from "vite";
 
-/** TanStack Start options shared by both paths (src/server.ts is our SSR wrapper). */
-const START_OPTIONS = { server: { entry: "server" } } as const;
-
-type ConfigEnv = { command: string; mode: string };
-
-async function lovableConfig(env: ConfigEnv): Promise<UserConfig | null> {
-  // STANDALONE=1 forces the portable path, useful to verify a self-hosted build.
-  if (process.env["STANDALONE"] === "1") return null;
-  try {
-    const mod = await import("@lovable.dev/vite-tanstack-config");
-    const cfg = mod.defineConfig({ tanstackStart: START_OPTIONS }) as unknown;
-    // The wrapper may return a config object or a config factory.
-    const resolved =
-      typeof cfg === "function" ? await (cfg as (e: ConfigEnv) => unknown)(env) : cfg;
-    return (resolved ?? null) as UserConfig | null;
-  } catch {
-    // Package not installed (self-hosted build) — fall through to the portable config.
-    return null;
-  }
-}
-
-async function standaloneConfig(command: string): Promise<UserConfig> {
-  const [{ tanstackStart }, react, tailwindcss, tsConfigPaths] = await Promise.all([
-    import("@tanstack/react-start/plugin/vite"),
-    import("@vitejs/plugin-react").then((m) => m.default),
-    import("@tailwindcss/vite").then((m) => m.default),
-    import("vite-tsconfig-paths").then((m) => m.default),
-  ]);
-
-  const plugins = [
-    tsConfigPaths({ projects: ["./tsconfig.json"] }),
-    tailwindcss(),
-    tanstackStart(START_OPTIONS),
-    react(),
-  ];
-
-  if (command === "build") {
-    const { nitro } = await import("nitro/vite");
-    plugins.push(
-      nitro({
-        preset: SELF_HOST_PRESET,
-        output: { dir: "dist", serverDir: "dist/server", publicDir: "dist/client" },
-      }),
-    );
-  }
+export default defineConfig(({ mode, command }) => {
+  const env = loadEnv(mode, process.cwd(), "");
+  const port = Number(env.PORT ?? 8080);
+  const host = env.HOST ?? "0.0.0.0";
+  const isBuild = command === "build";
 
   return {
-    plugins,
-    server: {
-      host: process.env["HOST"] ?? "0.0.0.0",
-      port: Number(process.env["PORT"] ?? 8080),
+    resolve: {
+      alias: {
+        "@": fileURLToPath(new URL("./src", import.meta.url)),
+      },
+      dedupe: ["react", "react-dom", "@tanstack/react-router", "@tanstack/react-query"],
     },
-    build: { sourcemap: false },
-  };
-}
 
-export default async (env: ConfigEnv): Promise<UserConfig> =>
-  (await lovableConfig(env)) ?? (await standaloneConfig(env.command));
+    server: {
+      port,
+      host,
+    },
+
+    preview: {
+      port,
+      host,
+    },
+
+    /*
+     * IMPORTANT:
+     *
+     * TanStack Start re-exports createMiddleware/createCsrfMiddleware
+     * through @tanstack/start-client-core.
+     *
+     * Vite/Nitro can otherwise split that re-export chain incorrectly.
+     */
+    ssr: {
+      optimizeDeps: {
+        include: ["@tanstack/react-start", "@tanstack/start-client-core"],
+      },
+    },
+
+    build: {
+      sourcemap: false,
+      reportCompressedSize: true,
+      chunkSizeWarningLimit: 900,
+
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes("node_modules/react") || id.includes("node_modules/react-dom")) {
+              return "react-vendor";
+            }
+
+            if (id.includes("@tanstack/react-router") || id.includes("@tanstack/react-query")) {
+              return "router-vendor";
+            }
+
+            if (
+              id.includes("@radix-ui") ||
+              id.includes("lucide-react") ||
+              id.includes("cmdk") ||
+              id.includes("vaul") ||
+              id.includes("sonner")
+            ) {
+              return "ui-vendor";
+            }
+
+            if (id.includes("@supabase/supabase-js") || id.includes("@supabase/server")) {
+              return "supabase-vendor";
+            }
+
+            if (id.includes("recharts")) {
+              return "chart-vendor";
+            }
+
+            if (id.includes("framer-motion")) {
+              return "motion-vendor";
+            }
+
+            return undefined;
+          },
+        },
+      },
+    },
+
+    plugins: [
+      tailwindcss(),
+
+      tanstackStart({
+        server: {
+          entry: "server",
+        },
+      }),
+
+      viteReact(),
+
+      ...(isBuild
+        ? [
+            nitro({
+              preset: env.NITRO_PRESET ?? "node-server",
+
+              output: {
+                dir: env.BUILD_OUTPUT_DIR ?? "dist",
+                serverDir: "{{ output.dir }}/server",
+                publicDir: "{{ output.dir }}/client",
+              },
+
+              cloudflare: {
+                nodeCompat: true,
+                deployConfig: true,
+              },
+            }),
+          ]
+        : []),
+    ],
+  };
+});
