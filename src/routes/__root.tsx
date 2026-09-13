@@ -17,7 +17,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Layout } from "@/components/layout";
 
-const SITE_URL = "https://gameflex.co.ke";
+// Canonical origin comes from configuration so every deployment (staging,
+// production, self-hosted) advertises its own address.
+const SITE_URL = siteConfig.url;
 
 const API_ORIGIN = import.meta.env.VITE_SUPABASE_URL
   ? new URL(import.meta.env.VITE_SUPABASE_URL).origin
