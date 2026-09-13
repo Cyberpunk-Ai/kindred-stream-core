@@ -1,0 +1,59 @@
+# Portable deployment (Docker Compose, Dokploy, Coolify).
+# Copy .env.example to .env and fill it in before running:
+#   docker compose up -d --build
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_APP_NAME: ${VITE_APP_NAME}
+        VITE_APP_DESCRIPTION: ${VITE_APP_DESCRIPTION}
+        VITE_SITE_URL: ${VITE_SITE_URL}
+        VITE_CURRENCY: ${VITE_CURRENCY}
+        VITE_SUPPORT_EMAIL: ${VITE_SUPPORT_EMAIL}
+        VITE_DEFAULT_LOBBY_SIZE: ${VITE_DEFAULT_LOBBY_SIZE}
+        VITE_BACKEND_PROVIDER: ${VITE_BACKEND_PROVIDER}
+        VITE_AUTH_PROVIDER: ${VITE_AUTH_PROVIDER}
+        VITE_STORAGE_PROVIDER: ${VITE_STORAGE_PROVIDER}
+        VITE_REALTIME_PROVIDER: ${VITE_REALTIME_PROVIDER}
+        VITE_BACKEND_REST_URL: ${VITE_BACKEND_REST_URL}
+        VITE_BACKEND_REST_KEY: ${VITE_BACKEND_REST_KEY}
+        VITE_AUTH_API_URL: ${VITE_AUTH_API_URL}
+        VITE_STORAGE_API_URL: ${VITE_STORAGE_API_URL}
+        VITE_STORAGE_PUBLIC_URL: ${VITE_STORAGE_PUBLIC_URL}
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_PROJECT_ID: ${VITE_SUPABASE_PROJECT_ID}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY}
+        VITE_OAUTH_PROVIDERS: ${VITE_OAUTH_PROVIDERS}
+        VITE_ANALYTICS_ENABLED: ${VITE_ANALYTICS_ENABLED}
+        VITE_ERROR_REPORTING_URL: ${VITE_ERROR_REPORTING_URL}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOST: 0.0.0.0
+      SITE_URL: ${VITE_SITE_URL}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_PROJECT_ID: ${SUPABASE_PROJECT_ID}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER}
+      STORAGE_API_URL: ${STORAGE_API_URL}
+      STORAGE_PUBLIC_URL: ${STORAGE_PUBLIC_URL}
+      STORAGE_MAX_UPLOAD_BYTES: ${STORAGE_MAX_UPLOAD_BYTES}
+      STORAGE_ALLOWED_ORIGINS: ${STORAGE_ALLOWED_ORIGINS}
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
