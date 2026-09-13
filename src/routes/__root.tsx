@@ -16,6 +16,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Layout } from "@/components/layout";
+import { siteConfig } from "@/config/site";
 
 // Canonical origin comes from configuration so every deployment (staging,
 // production, self-hosted) advertises its own address.
