@@ -70,5 +70,5 @@ async function standaloneConfig(command: string): Promise<UserConfig> {
   };
 }
 
-export default async ({ command }: { command: string }): Promise<UserConfig> =>
-  (await lovableConfig()) ?? (await standaloneConfig(command));
+export default async (env: ConfigEnv): Promise<UserConfig> =>
+  (await lovableConfig(env)) ?? (await standaloneConfig(env.command));
