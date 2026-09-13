@@ -1,24 +1,23 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { siteConfig } from "@/config/site";
 
-const SITE_URL = "https://gameflex.co.ke";
-
-const URLS = [
-  { path: "/", lastmod: "2026-08-25" },
-  { path: "/about", lastmod: "2026-08-25" },
-  { path: "/how-it-works", lastmod: "2026-08-25" },
-  { path: "/tournaments", lastmod: "2026-08-25" },
-  { path: "/leaderboard", lastmod: "2026-08-25" },
-  { path: "/game-rooms", lastmod: "2026-08-25" },
-  { path: "/marketplace", lastmod: "2026-08-25" },
-  { path: "/achievements", lastmod: "2026-08-25" },
-  { path: "/explore", lastmod: "2026-08-25" },
-  { path: "/flex", lastmod: "2026-08-25" },
-  { path: "/faqs", lastmod: "2026-08-25" },
-  { path: "/help", lastmod: "2026-08-25" },
-  { path: "/contact", lastmod: "2026-08-25" },
-  { path: "/fair-play", lastmod: "2026-08-25" },
-  { path: "/terms", lastmod: "2026-08-25" },
-  { path: "/privacy", lastmod: "2026-08-25" },
+const PATHS = [
+  "/",
+  "/about",
+  "/how-it-works",
+  "/tournaments",
+  "/leaderboard",
+  "/game-rooms",
+  "/marketplace",
+  "/achievements",
+  "/explore",
+  "/flex",
+  "/faqs",
+  "/help",
+  "/contact",
+  "/fair-play",
+  "/terms",
+  "/privacy",
 ] as const;
 
 function escapeXml(value: string): string {
@@ -30,13 +29,24 @@ function escapeXml(value: string): string {
     .replaceAll("'", "&apos;");
 }
 
+/** Prefer the real request origin, then configured site URL — nothing hardcoded. */
+function originOf(request: Request): string {
+  try {
+    return new URL(request.url).origin;
+  } catch {
+    return siteConfig.url;
+  }
+}
+
 export const Route = createFileRoute("/sitemap.xml")({
   server: {
     handlers: {
-      GET: () => {
-        const urls = URLS.map(
-          ({ path, lastmod }) => `  <url>
-    <loc>${escapeXml(`${SITE_URL}${path}`)}</loc>
+      GET: ({ request }) => {
+        const siteUrl = originOf(request);
+        const lastmod = new Date().toISOString().slice(0, 10);
+        const urls = PATHS.map(
+          (path) => `  <url>
+    <loc>${escapeXml(`${siteUrl}${path}`)}</loc>
     <lastmod>${lastmod}</lastmod>
   </url>`,
         ).join("\n");
@@ -51,8 +61,7 @@ ${urls}
           status: 200,
           headers: {
             "Content-Type": "application/xml; charset=utf-8",
-            "Cache-Control":
-              "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
+            "Cache-Control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
             "X-Content-Type-Options": "nosniff",
           },
         });
