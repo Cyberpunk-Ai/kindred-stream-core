@@ -34,7 +34,7 @@ export function pageSeo({
     { property: "og:description", content: desc },
     { property: "og:site_name", content: BRAND },
     { property: "og:type", content: "website" },
-    { property: "og:url", content: "https://gameflex.co.ke" },
+    { property: "og:url", content: publicOrigin() },
     { name: "twitter:card", content: "summary_large_image" },
     { name: "twitter:site", content: "@GameFlex" },
   ];
