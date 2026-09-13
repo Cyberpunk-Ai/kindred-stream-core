@@ -24,14 +24,14 @@ bun run dev            # http://localhost:8080
 
 Useful scripts:
 
-| Command             | Purpose                                  |
-| ------------------- | ---------------------------------------- |
-| `bun run dev`       | dev server with HMR                      |
-| `bun run build`     | production build                         |
-| `bun run build:node`| production build targeting a Node server |
-| `bun run start`     | run the built server (`dist/server`)     |
-| `bun run typecheck` | TypeScript check                         |
-| `bun run lint`      | ESLint                                   |
+| Command              | Purpose                                  |
+| -------------------- | ---------------------------------------- |
+| `bun run dev`        | dev server with HMR                      |
+| `bun run build`      | production build                         |
+| `bun run build:node` | production build targeting a Node server |
+| `bun run start`      | run the built server (`dist/server`)     |
+| `bun run typecheck`  | TypeScript check                         |
+| `bun run lint`       | ESLint                                   |
 
 ## Deployment
 

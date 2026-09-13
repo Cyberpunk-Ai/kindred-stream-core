@@ -65,7 +65,7 @@ docker run -d -p 3000:3000 --env-file .env gameflex
 
 | Path       | Meaning                                                          |
 | ---------- | ---------------------------------------------------------------- |
-| `/healthz` | liveness — dependency free, stays green during backend hiccups    |
+| `/healthz` | liveness — dependency free, stays green during backend hiccups   |
 | `/readyz`  | readiness — verifies configuration and that the backend responds |
 
 Use `/healthz` for restart policies and `/readyz` for load-balancer routing.

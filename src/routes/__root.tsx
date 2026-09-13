@@ -32,9 +32,7 @@ function NotFoundComponent() {
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-foreground">404</h1>
 
-        <h2 className="mt-4 text-xl font-semibold text-foreground">
-          Page not found
-        </h2>
+        <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
 
         <p className="mt-2 text-sm text-muted-foreground">
           The page you're looking for doesn't exist or has been moved.
@@ -53,13 +51,7 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({
-  error,
-  reset,
-}: {
-  error: Error;
-  reset: () => void;
-}) {
+function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
 
   const router = useRouter();
@@ -105,138 +97,136 @@ function ErrorComponent({
   );
 }
 
-export const Route =
-  createRootRouteWithContext<{ queryClient: QueryClient }>()({
-    head: () => ({
-      meta: [
-        { charSet: "utf-8" },
-        {
-          name: "viewport",
-          content: "width=device-width, initial-scale=1",
-        },
-        {
-          name: "theme-color",
-          content: "#0b0b12",
-        },
-        {
-          title: "GameFlex | The World's Premier Gaming Ecosystem",
-        },
-        {
-          name: "description",
-          content: "The world's premier gaming ecosystem.",
-        },
-        {
-          property: "og:title",
-          content: "GameFlex | The World's Premier Gaming Ecosystem",
-        },
-        {
-          property: "og:description",
-          content: "The world's premier gaming ecosystem.",
-        },
-        {
-          property: "og:site_name",
-          content: "GameFlex",
-        },
-        {
-          property: "og:type",
-          content: "website",
-        },
-        {
-          property: "og:url",
-          content: SITE_URL,
-        },
-        {
-          property: "og:image",
-          content: `${SITE_URL}/icons/icon-512.png`,
-        },
-        {
-          name: "twitter:title",
-          content: "GameFlex | The World's Premier Gaming Ecosystem",
-        },
-        {
-          name: "twitter:description",
-          content: "The world's premier gaming ecosystem.",
-        },
-        {
-          name: "twitter:card",
-          content: "summary_large_image",
-        },
-        {
-          name: "twitter:site",
-          content: "@GameFlex",
-        },
-        {
-          name: "twitter:image",
-          content: `${SITE_URL}/icons/icon-512.png`,
-        },
-      ],
-      links: [
-        {
-          rel: "icon",
-          href: "/favicon.ico",
-        },
-        {
-          rel: "icon",
-          type: "image/png",
-          href: "/favicon.png",
-        },
-        {
-          rel: "icon",
-          type: "image/png",
-          sizes: "192x192",
-          href: "/icons/icon-192.png",
-        },
-        {
-          rel: "apple-touch-icon",
-          sizes: "180x180",
-          href: "/icons/apple-touch-icon.png",
-        },
-        {
-          rel: "manifest",
-          href: "/manifest.webmanifest",
-        },
-        {
-          rel: "canonical",
-          href: SITE_URL,
-        },
-        {
-          rel: "stylesheet",
-          href: appCss,
-        },
-        {
-          rel: "preconnect",
-          href: "https://fonts.googleapis.com",
-        },
-        {
-          rel: "preconnect",
-          href: "https://fonts.gstatic.com",
-          crossOrigin: "anonymous",
-        },
-        ...(API_ORIGIN
-          ? [
-              {
-                rel: "preconnect",
-                href: API_ORIGIN,
-                crossOrigin: "anonymous" as const,
-              },
-              {
-                rel: "dns-prefetch",
-                href: API_ORIGIN,
-              },
-            ]
-          : []),
-        {
-          rel: "stylesheet",
-          href:
-            "https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap",
-        },
-      ],
-    }),
-    shellComponent: RootShell,
-    component: RootComponent,
-    notFoundComponent: NotFoundComponent,
-    errorComponent: ErrorComponent,
-  });
+export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  head: () => ({
+    meta: [
+      { charSet: "utf-8" },
+      {
+        name: "viewport",
+        content: "width=device-width, initial-scale=1",
+      },
+      {
+        name: "theme-color",
+        content: "#0b0b12",
+      },
+      {
+        title: "GameFlex | The World's Premier Gaming Ecosystem",
+      },
+      {
+        name: "description",
+        content: "The world's premier gaming ecosystem.",
+      },
+      {
+        property: "og:title",
+        content: "GameFlex | The World's Premier Gaming Ecosystem",
+      },
+      {
+        property: "og:description",
+        content: "The world's premier gaming ecosystem.",
+      },
+      {
+        property: "og:site_name",
+        content: "GameFlex",
+      },
+      {
+        property: "og:type",
+        content: "website",
+      },
+      {
+        property: "og:url",
+        content: SITE_URL,
+      },
+      {
+        property: "og:image",
+        content: `${SITE_URL}/icons/icon-512.png`,
+      },
+      {
+        name: "twitter:title",
+        content: "GameFlex | The World's Premier Gaming Ecosystem",
+      },
+      {
+        name: "twitter:description",
+        content: "The world's premier gaming ecosystem.",
+      },
+      {
+        name: "twitter:card",
+        content: "summary_large_image",
+      },
+      {
+        name: "twitter:site",
+        content: "@GameFlex",
+      },
+      {
+        name: "twitter:image",
+        content: `${SITE_URL}/icons/icon-512.png`,
+      },
+    ],
+    links: [
+      {
+        rel: "icon",
+        href: "/favicon.ico",
+      },
+      {
+        rel: "icon",
+        type: "image/png",
+        href: "/favicon.png",
+      },
+      {
+        rel: "icon",
+        type: "image/png",
+        sizes: "192x192",
+        href: "/icons/icon-192.png",
+      },
+      {
+        rel: "apple-touch-icon",
+        sizes: "180x180",
+        href: "/icons/apple-touch-icon.png",
+      },
+      {
+        rel: "manifest",
+        href: "/manifest.webmanifest",
+      },
+      {
+        rel: "canonical",
+        href: SITE_URL,
+      },
+      {
+        rel: "stylesheet",
+        href: appCss,
+      },
+      {
+        rel: "preconnect",
+        href: "https://fonts.googleapis.com",
+      },
+      {
+        rel: "preconnect",
+        href: "https://fonts.gstatic.com",
+        crossOrigin: "anonymous",
+      },
+      ...(API_ORIGIN
+        ? [
+            {
+              rel: "preconnect",
+              href: API_ORIGIN,
+              crossOrigin: "anonymous" as const,
+            },
+            {
+              rel: "dns-prefetch",
+              href: API_ORIGIN,
+            },
+          ]
+        : []),
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap",
+      },
+    ],
+  }),
+  shellComponent: RootShell,
+  component: RootComponent,
+  notFoundComponent: NotFoundComponent,
+  errorComponent: ErrorComponent,
+});
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
