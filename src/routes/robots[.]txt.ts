@@ -1,11 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { siteConfig } from "@/config/site";
 
-const SITE_URL = "https://gameflex.co.ke";
+/** Prefer the real request origin, then configured site URL — nothing hardcoded. */
+function originOf(request: Request): string {
+  try {
+    return new URL(request.url).origin;
+  } catch {
+    return siteConfig.url;
+  }
+}
 
 export const Route = createFileRoute("/robots.txt")({
   server: {
     handlers: {
-      GET: () => {
+      GET: ({ request }) => {
+        const siteUrl = originOf(request);
         const body = [
           "User-agent: *",
           "Allow: /",
@@ -43,7 +52,7 @@ export const Route = createFileRoute("/robots.txt")({
           "User-agent: CloudflareBrowserRenderingCrawler",
           "Allow: /",
           "",
-          `Sitemap: ${SITE_URL}/sitemap.xml`,
+          `Sitemap: ${siteUrl}/sitemap.xml`,
           "",
         ].join("\n");
 
@@ -51,8 +60,7 @@ export const Route = createFileRoute("/robots.txt")({
           status: 200,
           headers: {
             "Content-Type": "text/plain; charset=utf-8",
-            "Cache-Control":
-              "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
+            "Cache-Control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
             "X-Content-Type-Options": "nosniff",
           },
         });
