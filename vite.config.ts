@@ -20,10 +20,15 @@ const SELF_HOST_PRESET = process.env["SERVER_PRESET"] ?? process.env["NITRO_PRES
 /** TanStack Start options shared by both paths (src/server.ts is our SSR wrapper). */
 const START_OPTIONS = { server: { entry: "server" } } as const;
 
-async function lovableConfig(): Promise<UserConfig | null> {
+type ConfigEnv = { command: string; mode: string };
+
+async function lovableConfig(env: ConfigEnv): Promise<UserConfig | null> {
   try {
     const mod = await import("@lovable.dev/vite-tanstack-config");
-    return mod.defineConfig({ tanstackStart: START_OPTIONS }) as unknown as UserConfig;
+    const cfg = mod.defineConfig({ tanstackStart: START_OPTIONS }) as unknown;
+    // The wrapper may return a config object or a config factory.
+    const resolved = typeof cfg === "function" ? await (cfg as (e: ConfigEnv) => unknown)(env) : cfg;
+    return (resolved ?? null) as UserConfig | null;
   } catch {
     // Package not installed (self-hosted build) — fall through to the portable config.
     return null;
