@@ -1,7 +1,8 @@
-const BRAND = "GameFlex";
-const DEFAULT_TITLE = "GameFlex | The World's Premier Gaming Ecosystem";
-const DEFAULT_DESCRIPTION =
-  "The world's premier gaming ecosystem. Discover the complete gaming experience on one platform.";
+import { siteConfig, publicOrigin } from "@/config/site";
+
+const BRAND = siteConfig.name;
+const DEFAULT_TITLE = `${siteConfig.name} | The World's Premier Gaming Ecosystem`;
+const DEFAULT_DESCRIPTION = siteConfig.description;
 
 export interface PageSeoOptions {
   title?: string;
@@ -33,7 +34,7 @@ export function pageSeo({
     { property: "og:description", content: desc },
     { property: "og:site_name", content: BRAND },
     { property: "og:type", content: "website" },
-    { property: "og:url", content: "https://gameflex.co.ke" },
+    { property: "og:url", content: publicOrigin() },
     { name: "twitter:card", content: "summary_large_image" },
     { name: "twitter:site", content: "@GameFlex" },
   ];

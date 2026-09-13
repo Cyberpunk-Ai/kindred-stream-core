@@ -39,6 +39,7 @@ import { Route as MyMatchesRouteImport } from './routes/my-matches'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as ReadyzRouteImport } from './routes/readyz'
 import { Route as ReelsRouteImport } from './routes/reels'
 import { Route as ReferralsRouteImport } from './routes/referrals'
 import { Route as RefundRouteImport } from './routes/refund'
@@ -236,6 +237,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReadyzRoute = ReadyzRouteImport.update({
+  id: '/readyz',
+  path: '/readyz',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReelsRoute = ReelsRouteImport.update({
@@ -511,6 +517,7 @@ export interface FileRoutesByFullPath {
   '/notifications': typeof NotificationsRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
+  '/readyz': typeof ReadyzRoute
   '/reels': typeof ReelsRoute
   '/referrals': typeof ReferralsRoute
   '/refund': typeof RefundRoute
@@ -590,6 +597,7 @@ export interface FileRoutesByTo {
   '/notifications': typeof NotificationsRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
+  '/readyz': typeof ReadyzRoute
   '/reels': typeof ReelsRoute
   '/referrals': typeof ReferralsRoute
   '/refund': typeof RefundRoute
@@ -669,6 +677,7 @@ export interface FileRoutesById {
   '/notifications': typeof NotificationsRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
+  '/readyz': typeof ReadyzRoute
   '/reels': typeof ReelsRoute
   '/referrals': typeof ReferralsRoute
   '/refund': typeof RefundRoute
@@ -751,6 +760,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/privacy'
     | '/profile'
+    | '/readyz'
     | '/reels'
     | '/referrals'
     | '/refund'
@@ -830,6 +840,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/privacy'
     | '/profile'
+    | '/readyz'
     | '/reels'
     | '/referrals'
     | '/refund'
@@ -908,6 +919,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/privacy'
     | '/profile'
+    | '/readyz'
     | '/reels'
     | '/referrals'
     | '/refund'
@@ -989,6 +1001,7 @@ export interface RootRouteChildren {
   NotificationsRoute: typeof NotificationsRoute
   PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRoute
+  ReadyzRoute: typeof ReadyzRoute
   ReelsRoute: typeof ReelsRoute
   ReferralsRoute: typeof ReferralsRoute
   RefundRoute: typeof RefundRoute
@@ -1227,6 +1240,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/readyz': {
+      id: '/readyz'
+      path: '/readyz'
+      fullPath: '/readyz'
+      preLoaderRoute: typeof ReadyzRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reels': {
@@ -1676,6 +1696,7 @@ const rootRouteChildren: RootRouteChildren = {
   NotificationsRoute: NotificationsRoute,
   PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRoute,
+  ReadyzRoute: ReadyzRoute,
   ReelsRoute: ReelsRoute,
   ReferralsRoute: ReferralsRoute,
   RefundRoute: RefundRoute,

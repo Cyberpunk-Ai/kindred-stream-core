@@ -1,0 +1,13 @@
+node_modules
+dist
+.git
+.github
+.lovable
+.workspace
+.env
+.env.*
+!.env.example
+*.log
+/tmp
+coverage
+.DS_Store
