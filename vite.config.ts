@@ -23,6 +23,8 @@ const START_OPTIONS = { server: { entry: "server" } } as const;
 type ConfigEnv = { command: string; mode: string };
 
 async function lovableConfig(env: ConfigEnv): Promise<UserConfig | null> {
+  // STANDALONE=1 forces the portable path, useful to verify a self-hosted build.
+  if (process.env["STANDALONE"] === "1") return null;
   try {
     const mod = await import("@lovable.dev/vite-tanstack-config");
     const cfg = mod.defineConfig({ tanstackStart: START_OPTIONS }) as unknown;
