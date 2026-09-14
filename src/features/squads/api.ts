@@ -293,17 +293,45 @@ export async function fetchMyJoinRequests(userId: string) {
 }
 
 export async function requestToJoin(squadId: string, userId: string, message?: string) {
-  const { error } = await backend.from("squad_join_requests").upsert(
-    {
-      squad_id: squadId,
-      user_id: userId,
-      message: message ?? null,
-      status: "pending",
-      responded_at: null,
-    },
-    { onConflict: "squad_id,user_id" },
+  const row = {
+    squad_id: squadId,
+    user_id: userId,
+    message: message ?? null,
+    status: "pending" as InviteStatus,
+    responded_at: null,
+  };
+
+  const { error } = await backend
+    .from("squad_join_requests")
+    .upsert(row, { onConflict: "squad_id,user_id" });
+  if (!error) return;
+
+  // Older databases have no unique rule on (squad_id, user_id), so the upsert
+  // is rejected outright, and a plain insert would collide with an earlier
+  // request. Fall back to "update mine if it exists, otherwise insert".
+  const conflict = /42P10|23505|duplicate|no unique|on conflict/i.test(
+    `${error.code ?? ""} ${error.message ?? ""}`,
   );
-  if (error) throw error;
+  if (!conflict) throw error;
+
+  const { data: existing } = await backend
+    .from("squad_join_requests")
+    .select("id")
+    .eq("squad_id", squadId)
+    .eq("user_id", userId)
+    .limit(1);
+
+  if (existing?.[0]?.id) {
+    const { error: updateError } = await backend
+      .from("squad_join_requests")
+      .update({ status: "pending", message: row.message, responded_at: null })
+      .eq("id", existing[0].id);
+    if (updateError) throw updateError;
+    return;
+  }
+
+  const { error: insertError } = await backend.from("squad_join_requests").insert(row);
+  if (insertError) throw insertError;
 }
 
 export async function respondToJoinRequest(

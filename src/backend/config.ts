@@ -51,6 +51,11 @@ export const backendConfig = {
   storageApiUrl: env("STORAGE_API_URL"),
   /** Public/CDN base URL for objects, e.g. https://cdn.example.com. */
   storagePublicUrl: env("STORAGE_PUBLIC_URL"),
+  /**
+   * Per-bucket public host pattern, e.g. `https://{bucket}.gameflex.co.ke`.
+   * Takes precedence over `STORAGE_PUBLIC_URL` when set.
+   */
+  storagePublicUrlTemplate: env("STORAGE_PUBLIC_URL_TEMPLATE"),
 } as const;
 
 export type BackendConfig = typeof backendConfig;

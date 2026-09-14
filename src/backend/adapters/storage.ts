@@ -44,7 +44,7 @@ function createUnavailableStorage(message: string): StorageApi {
   };
 }
 
-function createHttpStorage(apiUrl: string, publicUrl?: string): StorageApi {
+function createHttpStorage(apiUrl: string, publicUrl?: string, publicTemplate?: string): StorageApi {
   return {
     from(bucket: string): StorageFileApi {
       const base = joinUrl(apiUrl, bucket);
@@ -132,7 +132,12 @@ function createHttpStorage(apiUrl: string, publicUrl?: string): StorageApi {
         },
 
         getPublicUrl(path) {
-          if (!publicUrl && apiUrl === "/api/storage") {
+          if (publicTemplate) {
+            return {
+              data: { publicUrl: joinUrl(publicTemplate.replace("{bucket}", bucket), path) },
+            };
+          }
+          if (!publicUrl) {
             return {
               data: {
                 publicUrl: `${joinUrl(apiUrl, bucket, "object")}?path=${encodeURIComponent(path)}`,
@@ -151,12 +156,12 @@ function createHttpStorage(apiUrl: string, publicUrl?: string): StorageApi {
 export function getStorageOverride(): StorageApi | undefined {
   const apiUrl = backendConfig.storageApiUrl;
   if (!apiUrl && backendConfig.storage === "r2") {
-    return createHttpStorage("/api/storage");
+    return createHttpStorage("/api/storage", undefined, backendConfig.storagePublicUrlTemplate);
   }
   if (!apiUrl) {
     return createUnavailableStorage(
       `Storage provider ${backendConfig.storage} is not configured. Set VITE_STORAGE_API_URL for uploads and private file access.`,
     );
   }
-  return createHttpStorage(apiUrl, backendConfig.storagePublicUrl);
+  return createHttpStorage(apiUrl, backendConfig.storagePublicUrl, backendConfig.storagePublicUrlTemplate);
 }
